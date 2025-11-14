@@ -1,12 +1,12 @@
 # C SERVER FOR BATTLESHIP
 
 ```
-gcc server.c database.c game.c utils.c cJson.c -o server \
+gcc server.c database.c game.c response.c utils.c cJson.c -o server \
     -lsqlite3 -lssl -lcrypto -lpthread -lm
 ```
 
 ```
-gcc server.c database.c game.c utils.c cJson.c -o server -lsqlite3 -lssl -lcrypto -lpthread -lm
+gcc server.c database.c game.c response.c utils.c cJson.c -o server -lsqlite3 -lssl -lcrypto -lpthread -lm
 ```
 
 ```

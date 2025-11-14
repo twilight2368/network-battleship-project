@@ -6,7 +6,7 @@
 #include <sys/select.h>
 #include <poll.h>
 #include <pthread.h>
-
+#include <sys/socket.h>
 #include <openssl/sha.h> // TODO: SHA256 for password hashing
 #include <sqlite3.h>     // TODO: SQLite for user storage
 #include "cJSON.h"       // TODO: JSON parsing/serialization
@@ -138,6 +138,7 @@ int createMatchSession(Player p1, Player p2, BoardState b1, BoardState b2)
             matchSessionList[i].board_p1 = b1;
             matchSessionList[i].board_p2 = b2;
             matchSessionList[i].current_turn = (rand() % 2 == 0) ? p1.user_id : p2.user_id; //? RANDOM THE FIRST TURN
+            printf("[NEW MATCH] Match %d: %s (%d) vs %s (%d). \n", new_match_id, p1.username, p1.elo, p2.username, p2.elo);
             pthread_mutex_unlock(&match_lock);
             return matchSessionList[i].match_id; //* Return match_id created in db
         }
@@ -239,11 +240,12 @@ void *matchmaking_thread(void *arg)
                 if (match_id <= 0)
                     continue;
 
-                // todo: Remove player from waiting queue
-                dequeuePlayer(p1.user_id);
-                dequeuePlayer(p2.user_id);
-
                 MatchSession *new_match = getMatchById(match_id);
+                printf("New match %d: %s vs %s (ELO %d vs %d)\n", match_id, p1.username, p2.username, p1.elo, p2.elo);
+
+                // todo: dequeue the player
+                memset(&queuePlayer[i], 0, sizeof(WaitingPlayer));
+                memset(&queuePlayer[j], 0, sizeof(WaitingPlayer));
 
                 pthread_mutex_lock(&connections_lock);
                 Player *player1 = getPlayerByUserId(p1.user_id);
@@ -255,12 +257,20 @@ void *matchmaking_thread(void *arg)
                 pthread_mutex_unlock(&connections_lock);
 
                 // todo: Send notify to each players
-                sendNotifyMatchFound(p1.socket_fd, new_match->match_id, p1.username, p2.username, new_match->current_turn);
-                sendNotifyMatchFound(p2.socket_fd, new_match->match_id, p1.username, p2.username, new_match->current_turn);
-                printf("New match %d: %s vs %s (ELO %d vs %d)\n", match_id, p1.username, p2.username, p1.elo, p2.elo);
+                if (sendNotifyMatchFound(p1.socket_fd, new_match->match_id, p1.username, p2.username, new_match->current_turn))
+                {
+                    printf("[INFO] Send match invitation to %s socket %d. \n", p1.username, p1.socket_fd);
+                }
+
+                if (sendNotifyMatchFound(p2.socket_fd, new_match->match_id, p1.username, p2.username, new_match->current_turn))
+                {
+                    printf("[INFO] Send match invitation to %s socket %d. \n", p2.username, p2.socket_fd);
+                }
             }
         }
         pthread_mutex_unlock(&queue_lock);
+
+        // printf("Match-making loop is still running... \n");
         sleep(1); //* sleep 1s
     }
     return NULL;
@@ -421,23 +431,26 @@ int main(int argc, char const *argv[])
                         }
                     }
 
+                    if (player)
+                        printf("Disconnection from %s:%d\n", inet_ntoa(player->addr.sin_addr), ntohs(player->addr.sin_port));
                     pthread_mutex_lock(&connections_lock);
                     memset(player, 0, sizeof(player));
                     pthread_mutex_unlock(&connections_lock);
                     close(client_fd);
+                    fds[i + 1].fd = 0;
                 }
                 else
                 {
                     buffer[valread] = '\0';
-                    // printf("%s", buffer);
+                    // printf("%s \n", buffer);
                     cJSON *payload = cJSON_Parse(buffer);
                     if (!payload)
                     {
                         sendError(client_fd, "Payload is not valid");
                         continue;
                     }
-
-                    // todo: Get client information
+                    // printf("Received payload: %s\n", cJSON_Print(payload));
+                    //  todo: Get client information
                     Player *player = getPlayerBySockFd(client_fd);
 
                     if (!player)
@@ -471,7 +484,7 @@ int main(int argc, char const *argv[])
 
                             int success = db_create_user(&db, username_json->valuestring, password_hash);
 
-                            sendResult(client_fd, "REGISTER_RES", success ? 1 : 0);
+                            sendResult(client_fd, "REGISTER_RES", success ? 1 : 0, success ? "Success register" : "Failed to insert to database");
                         }
                         // todo: LOGIN
                         else if (strcmp(endpoint, "LOGIN_REQ") == 0)
@@ -482,7 +495,7 @@ int main(int argc, char const *argv[])
                             if (!username_json || !password_json ||
                                 !cJSON_IsString(username_json) || !cJSON_IsString(password_json))
                             {
-                                sendResult(client_fd, "LOGIN_RES", 0);
+                                sendResult(client_fd, "LOGIN_RES", 0, "Missing ");
                                 continue;
                             }
 
@@ -514,7 +527,7 @@ int main(int argc, char const *argv[])
                             else
                             {
                                 // Failed login
-                                sendResult(client_fd, "LOGIN_RES", 0);
+                                sendResult(client_fd, "LOGIN_RES", 0, "Wrong password or username");
                                 printf("Failed login attempt: %s\n", username);
                             }
                         }
@@ -529,7 +542,7 @@ int main(int argc, char const *argv[])
                             player->in_queue = 0;
                             player->elo = 0;
                             memset(player->username, 0, sizeof(player->username));
-                            sendResult(client_fd, "LOGOUT_RES", 1);
+                            sendResult(client_fd, "LOGOUT_RES", 1, "Success logout");
                             pthread_mutex_unlock(&connections_lock);
                         }
                         // todo: ENTER WAITING QUEUE
@@ -537,14 +550,14 @@ int main(int argc, char const *argv[])
                         {
                             if (!player->is_login)
                             {
-                                sendResult(client_fd, "QUEUE_ENTER_RES", 0);
+                                sendResult(client_fd, "QUEUE_ENTER_RES", 0, "Use is not login");
                                 continue;
                             }
 
                             cJSON *ships_json = cJSON_GetObjectItem(payload, "ships");
                             if (!ships_json || !cJSON_IsObject(ships_json))
                             {
-                                sendResult(client_fd, "QUEUE_ENTER_RES", 0);
+                                sendResult(client_fd, "QUEUE_ENTER_RES", 0, "No ships was found");
                                 continue;
                             }
 
@@ -559,7 +572,7 @@ int main(int argc, char const *argv[])
                                 !place_ship_from_json(&board, ships_json, "submarine", SUBMARINE) ||
                                 !place_ship_from_json(&board, ships_json, "destroyer", DESTROYER))
                             {
-                                sendResult(client_fd, "QUEUE_ENTER_RES", 0);
+                                sendResult(client_fd, "QUEUE_ENTER_RES", 0, "Failed to place ship");
                                 continue;
                             }
 
@@ -570,12 +583,13 @@ int main(int argc, char const *argv[])
                                 player->in_queue = 1;
                                 pthread_mutex_unlock(&connections_lock);
 
-                                sendResult(client_fd, "QUEUE_ENTER_RES", 1);
+                                sendResult(client_fd, "QUEUE_ENTER_RES", 1, "Enter queue success");
                                 printf("Player %s entered matchmaking queue\n", player->username);
                             }
                             else
                             {
-                                sendResult(client_fd, "QUEUE_ENTER_RES", 0);
+
+                                sendResult(client_fd, "QUEUE_ENTER_RES", 0, "Failed to enter the queue");
                             }
                         }
                         // todo: EXIT WAITING QUEUE
@@ -587,11 +601,11 @@ int main(int argc, char const *argv[])
                                 pthread_mutex_lock(&connections_lock);
                                 player->in_queue = 0;
                                 pthread_mutex_unlock(&connections_lock);
-                                sendResult(client_fd, "QUEUE_EXIT_RES", 1);
+                                sendResult(client_fd, "QUEUE_EXIT_RES", 1, "Exit queue success");
                             }
                             else
                             {
-                                sendResult(client_fd, "QUEUE_EXIT_RES", 0);
+                                sendResult(client_fd, "QUEUE_EXIT_RES", 0, "Exit queue failed");
                             }
                         }
                         // todo: MOVE
@@ -674,6 +688,11 @@ int main(int argc, char const *argv[])
                                 result_str = "SUNK";
                                 break;
                             }
+                            // todo: Insert move to database
+                            if (db_create_move(&db, match_id, attacker->username, col, row, result_str) <= 0)
+                            {
+                                printf("[ERROR] Failed insert move into database... \n");
+                            }
 
                             // todo: Check for match end
                             if (all_ships_sunk(opponent_board))
@@ -685,7 +704,7 @@ int main(int argc, char const *argv[])
                                 // Update next turn
                                 match->current_turn = 0;
 
-                                const char *winner_str = (attacker->user_id == &match->player_1.user_id) ? "P1_WIN" : "P2_WIN";
+                                const char *winner_str = (attacker->user_id == match->player_1.user_id) ? "P1_WIN" : "P2_WIN";
 
                                 // todo: Update ELOs
                                 int new_elo_attacker = calculate_elo(attacker->elo, opponent->elo, 1.0);
@@ -705,9 +724,8 @@ int main(int argc, char const *argv[])
                                 // Notify players
                                 sendMatchResult(attacker->socket_fd, match_id, "WIN", new_elo_attacker);
                                 sendMatchResult(opponent->socket_fd, match_id, "LOSE", new_elo_opponent);
-
-                                removeMatchSession(match_id);
                                 printf("[GAME OVER] Match %d: %s won!\n", match_id, attacker->username);
+                                removeMatchSession(match_id);
                             }
                             else
                             {
@@ -804,6 +822,9 @@ int main(int argc, char const *argv[])
                         printf("[NULL] %s:%d\n", inet_ntoa(player->addr.sin_addr), ntohs(player->addr.sin_port));
                         sendError(client_fd, "Null endpoint type.");
                     }
+
+                    // todo: Free cJSON payload (memory leak)
+                    cJSON_Delete(payload);
                 }
             }
         }

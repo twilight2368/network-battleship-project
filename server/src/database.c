@@ -59,7 +59,6 @@ int db_create_tables(Database *database)
         "x INTEGER, "
         "y INTEGER, "
         "result TEXT CHECK(result IN ('HIT','MISS','SUNK')), "
-        "turn_order INTEGER, "
         "FOREIGN KEY(match_id) REFERENCES matches(id)"
         ");";
 
@@ -279,10 +278,10 @@ Match *db_get_matches_by_user(Database *database, const char *username, int *cou
 }
 
 // === MOVES CRUD ===
-int db_create_move(Database *database, int match_id, const char *player, int x, int y, const char *result, int turn_order)
+int db_create_move(Database *database, int match_id, const char *player, int x, int y, const char *result)
 {
     sqlite3_stmt *stmt;
-    const char *sql = "INSERT INTO moves (match_id, player, x, y, result, turn_order) VALUES (?, ?, ?, ?, ?, ?);";
+    const char *sql = "INSERT INTO moves (match_id, player, x, y, result) VALUES (?, ?, ?, ?, ?);";
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
         return 0;
 
@@ -291,7 +290,6 @@ int db_create_move(Database *database, int match_id, const char *player, int x, 
     sqlite3_bind_int(stmt, 3, x);
     sqlite3_bind_int(stmt, 4, y);
     sqlite3_bind_text(stmt, 5, result, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 6, turn_order);
 
     int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);

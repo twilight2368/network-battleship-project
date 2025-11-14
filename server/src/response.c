@@ -1,3 +1,7 @@
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <string.h>
 #include "response.h"
 #include "cJSON.h"
 
@@ -21,11 +25,12 @@ int sendError(int sock_fd, const char *message)
     return sent;
 }
 
-int sendResult(int sock_fd, const char *type, const int result)
+int sendResult(int sock_fd, const char *type, const int result, const char *message)
 {
     cJSON *msg = cJSON_CreateObject();
     cJSON_AddStringToObject(msg, "type", type);
     cJSON_AddNumberToObject(msg, "result", result);
+    cJSON_AddStringToObject(msg, "message", message);
     int sent = sendResponse(sock_fd, msg);
     cJSON_Delete(msg);
     return sent;
@@ -35,8 +40,8 @@ int sendResult(int sock_fd, const char *type, const int result)
 int sendLoginResult(int sock_fd, int user_id, const char *username, int elo)
 {
     cJSON *msg = cJSON_CreateObject();
-
-    cJSON_AddStringToObject(msg, "type", "LOGIN_RESULT");
+    cJSON_AddNumberToObject(msg, "result", 1);
+    cJSON_AddStringToObject(msg, "type", "LOGIN_RES");
     cJSON_AddNumberToObject(msg, "user_id", user_id);
     cJSON_AddStringToObject(msg, "username", username);
     cJSON_AddNumberToObject(msg, "elo", elo);

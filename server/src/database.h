@@ -59,7 +59,7 @@ int db_delete_match(Database *database, int match_id);
 Match *db_get_matches_by_user(Database *database, const char *username, int *count); // Return array
 
 //* ================== MOVES ==================
-int db_create_move(Database *database, int match_id, const char *player, int x, int y, const char *result, int turn_order);
+int db_create_move(Database *database, int match_id, const char *player, int x, int y, const char *result);
 Move *db_get_moves(Database *database, int match_id, int *count); // Return array of moves
 int db_delete_moves_by_match(Database *database, int match_id);
 
