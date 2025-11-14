@@ -1,8 +1,6 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <openssl/sha.h>
-
 /**
  * Hash a password using SHA-256.
  * @param password - input password

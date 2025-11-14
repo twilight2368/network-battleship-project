@@ -72,14 +72,19 @@ int db_create_user(Database *database, const char *username, const char *passwor
     sqlite3_stmt *stmt;
     const char *sql = "INSERT INTO users (username, password_hash) VALUES (?, ?);";
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
-        return 1;
+        return 0; // fail
 
-    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, password_hash, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, password_hash, -1, SQLITE_TRANSIENT);
 
     int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
-    return (rc == SQLITE_DONE) ? 0 : 1;
+
+    if (rc != SQLITE_DONE)
+        return 0; // fail
+
+    // Return inserted user ID
+    return (int)sqlite3_last_insert_rowid(database->db);
 }
 
 User db_get_user(Database *database, const char *username)
@@ -90,7 +95,7 @@ User db_get_user(Database *database, const char *username)
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
         return user;
 
-    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_TRANSIENT);
 
     if (sqlite3_step(stmt) == SQLITE_ROW)
     {
@@ -114,7 +119,7 @@ int db_update_user_elo(Database *database, const char *username, int new_elo)
         return 1;
 
     sqlite3_bind_int(stmt, 1, new_elo);
-    sqlite3_bind_text(stmt, 2, username, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, username, -1, SQLITE_TRANSIENT);
 
     int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -128,7 +133,7 @@ int db_delete_user(Database *database, const char *username)
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
         return 1;
 
-    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_TRANSIENT);
 
     int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -174,14 +179,18 @@ int db_create_match(Database *database, const char *player1, const char *player2
     sqlite3_stmt *stmt;
     const char *sql = "INSERT INTO matches (player1, player2, result) VALUES (?, ?, 'IN_PROGRESS');";
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
-        return 1;
+        return 0;
 
-    sqlite3_bind_text(stmt, 1, player1, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, player2, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 1, player1, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, player2, -1, SQLITE_TRANSIENT);
 
     int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
-    return (rc == SQLITE_DONE) ? 0 : 1;
+
+    if (rc != SQLITE_DONE)
+        return 0;
+
+    return (int)sqlite3_last_insert_rowid(database->db);
 }
 
 Match db_get_match(Database *database, int match_id)
@@ -213,7 +222,7 @@ int db_update_match_result(Database *database, int match_id, const char *result)
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
         return 1;
 
-    sqlite3_bind_text(stmt, 1, result, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 1, result, -1, SQLITE_TRANSIENT);
     sqlite3_bind_int(stmt, 2, match_id);
 
     int rc = sqlite3_step(stmt);
@@ -243,8 +252,8 @@ Match *db_get_matches_by_user(Database *database, const char *username, int *cou
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
         return NULL;
 
-    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, username, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 1, username, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, username, -1, SQLITE_TRANSIENT);
 
     int capacity = 8;
     Match *matches = malloc(sizeof(Match) * capacity);
@@ -275,18 +284,22 @@ int db_create_move(Database *database, int match_id, const char *player, int x, 
     sqlite3_stmt *stmt;
     const char *sql = "INSERT INTO moves (match_id, player, x, y, result, turn_order) VALUES (?, ?, ?, ?, ?, ?);";
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
-        return 1;
+        return 0;
 
     sqlite3_bind_int(stmt, 1, match_id);
-    sqlite3_bind_text(stmt, 2, player, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, player, -1, SQLITE_TRANSIENT);
     sqlite3_bind_int(stmt, 3, x);
     sqlite3_bind_int(stmt, 4, y);
-    sqlite3_bind_text(stmt, 5, result, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 5, result, -1, SQLITE_TRANSIENT);
     sqlite3_bind_int(stmt, 6, turn_order);
 
     int rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
-    return (rc == SQLITE_DONE) ? 0 : 1;
+
+    if (rc != SQLITE_DONE)
+        return 0;
+
+    return (int)sqlite3_last_insert_rowid(database->db);
 }
 
 Move *db_get_moves(Database *database, int match_id, int *count)

@@ -1,6 +1,8 @@
 #include "utils.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <math.h>
 #include <openssl/sha.h>
 
 // --- Utility: hash password ---

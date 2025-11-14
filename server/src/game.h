@@ -14,12 +14,12 @@ typedef enum
 
 typedef enum
 {
-    CARRIER,    // SIZE 5
-    BATTLESHIP, // SIZE 4
-    CRUISER,    // SIZE 3
-    SUBMARINE,  // SIZE 3
-    DESTROYER   // SIZE 2
-
+    NO_SHIP = 0,
+    CARRIER = 1,    // SIZE 5
+    BATTLESHIP = 2, // SIZE 4
+    CRUISER = 3,    // SIZE 3
+    SUBMARINE = 4,  // SIZE 3
+    DESTROYER = 5   // SIZE 2
 } ShipType;
 
 typedef enum
@@ -52,7 +52,7 @@ typedef struct
 int get_ship_size(ShipType type);
 
 /** Initialize the board state for the game
- * @return 0 == success, 1 == failed
+ * @return 1 == success, 0 == failed
  */
 int init_board_state(BoardState *state);
 
@@ -62,7 +62,7 @@ int init_board_state(BoardState *state);
 int validate_ship_placement(BoardState *state, int row, int col, int size, Orientation orient);
 
 /** Place ship
- * @return 0 == success, 1 == failed
+ * @return 1 == success, 0 == failed
  */
 int place_ship(BoardState *state, ShipType type, int row, int col, Orientation orient);
 
@@ -70,11 +70,6 @@ int place_ship(BoardState *state, ShipType type, int row, int col, Orientation o
  ** "o" -> miss, "x" -> hit
  */
 AttackResult attack_cell(BoardState *state, int row, int col);
-
-/**
- * Mark ship been hit on the ship list
- */
-void mark_ship_hit(BoardState *state, int row, int col);
 
 /**
  * Check all ships sunk

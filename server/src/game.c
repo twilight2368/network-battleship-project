@@ -14,6 +14,7 @@ int get_ship_size(ShipType type)
     case BATTLESHIP:
         return 4;
     case CRUISER:
+        return 3;
     case SUBMARINE:
         return 3;
     case DESTROYER:
@@ -24,12 +25,12 @@ int get_ship_size(ShipType type)
 }
 
 // =====================
-// Initialize board (only board)
+// Initialize board (board + ships)
 // =====================
 int init_board_state(BoardState *state)
 {
     if (!state)
-        return 1;
+        return 0; // failed
 
     for (int r = 0; r < MAX_BOARD_ROW; r++)
     {
@@ -39,14 +40,19 @@ int init_board_state(BoardState *state)
         }
     }
 
-    // Optionally, reset ship info to zero
+    // Reset ships
     for (int i = 0; i < MAX_SHIP_NUM; i++)
     {
+        state->ships[i].ship_type = NO_SHIP;
+        state->ships[i].row = 0;
+        state->ships[i].col = 0;
+        state->ships[i].orient = HORIZONTAL;
         state->ships[i].hits = 0;
+        state->ships[i].size = 0;
         state->ships[i].sunk = 0;
     }
 
-    return 0;
+    return 1; // success
 }
 
 // =====================
@@ -86,12 +92,12 @@ int validate_ship_placement(BoardState *state, int row, int col, int size, Orien
 int place_ship(BoardState *state, ShipType type, int row, int col, Orientation orient)
 {
     if (!state)
-        return 1;
+        return 0; // fail
 
     int size = get_ship_size(type);
 
     if (!validate_ship_placement(state, row, col, size, orient))
-        return 1;
+        return 0; // fail
 
     // Find first empty slot
     int index = -1;
@@ -105,7 +111,7 @@ int place_ship(BoardState *state, ShipType type, int row, int col, Orientation o
     }
 
     if (index == -1)
-        return 1; // no available slot
+        return 0; // no available slot
 
     // Fill ship struct
     state->ships[index].ship_type = type;
@@ -128,36 +134,7 @@ int place_ship(BoardState *state, ShipType type, int row, int col, Orientation o
             state->board[r][col] = 's';
     }
 
-    return 0;
-}
-
-// =====================
-// Mark ship hit
-// =====================
-void mark_ship_hit(BoardState *state, int row, int col)
-{
-    if (!state)
-        return;
-
-    for (int i = 0; i < MAX_SHIP_NUM; i++)
-    {
-        Ship *s = &state->ships[i];
-        if (s->size == 0 || s->sunk)
-            continue;
-
-        for (int j = 0; j < s->size; j++)
-        {
-            int r = s->row + (s->orient == VERTICAL ? j : 0);
-            int c = s->col + (s->orient == HORIZONTAL ? j : 0);
-            if (r == row && c == col)
-            {
-                s->hits++;
-                if (s->hits >= s->size)
-                    s->sunk = 1;
-                return;
-            }
-        }
-    }
+    return 1; // success
 }
 
 // =====================
@@ -173,32 +150,38 @@ AttackResult attack_cell(BoardState *state, int row, int col)
 
     char cell = state->board[row][col];
     if (cell == 'x' || cell == 'o')
-        return ATTACK_INVALID;
+        return ATTACK_INVALID; // already attacked
 
     if (cell == 's')
     {
         state->board[row][col] = 'x';
-        mark_ship_hit(state, row, col);
 
-        // Check the specific ship at this location
+        // todo: Find which ship was hit
         for (int i = 0; i < MAX_SHIP_NUM; i++)
         {
             Ship *s = &state->ships[i];
-            if (s->size == 0 || !s->sunk)
+            if (s->size == 0 || s->sunk)
                 continue;
 
-            // Check if this ship just sunk and contains (row, col)
-            int r0 = s->row, c0 = s->col;
             for (int j = 0; j < s->size; j++)
             {
-                int r = r0 + (s->orient == VERTICAL ? j : 0);
-                int c = c0 + (s->orient == HORIZONTAL ? j : 0);
+                int r = s->row + (s->orient == VERTICAL ? j : 0);
+                int c = s->col + (s->orient == HORIZONTAL ? j : 0);
+
                 if (r == row && c == col)
-                    return ATTACK_SUNK;
+                {
+                    s->hits++;
+                    if (s->hits >= s->size)
+                    {
+                        s->sunk = 1;
+                        return ATTACK_SUNK;
+                    }
+                    return ATTACK_HIT;
+                }
             }
         }
 
-        return ATTACK_HIT;
+        return ATTACK_HIT; //! (shouldn’t reach here)
     }
     else
     {
@@ -215,14 +198,14 @@ int all_ships_sunk(BoardState *state)
     if (!state)
         return 0;
 
-    // todo: Checking sunk status
+    // todo: Check ships
     for (int i = 0; i < MAX_SHIP_NUM; i++)
     {
         if (state->ships[i].size > 0 && !state->ships[i].sunk)
-            return 0; // a ship is still alive
+            return 0;
     }
 
-    // todo: Checking board status
+    // todo: Check board
     for (int r = 0; r < MAX_BOARD_ROW; r++)
     {
         for (int c = 0; c < MAX_BOARD_COL; c++)
@@ -232,8 +215,9 @@ int all_ships_sunk(BoardState *state)
         }
     }
 
-    return 1;
+    return 1; // all sunk
 }
+
 // =====================
 // Print board
 // =====================
@@ -242,21 +226,21 @@ void print_board(BoardState *state, int reveal_ships)
     if (!state)
         return;
 
-    printf("  ");
+    printf("   ");
     for (int c = 0; c < MAX_BOARD_COL; c++)
-        printf("%d ", c);
+        printf("%2d ", c);
     printf("\n");
 
     for (int r = 0; r < MAX_BOARD_ROW; r++)
     {
-        printf("%d ", r);
+        printf("%2d ", r);
         for (int c = 0; c < MAX_BOARD_COL; c++)
         {
             char cell = state->board[r][c];
             if (cell == 's' && !reveal_ships)
-                printf("  "); // hide ship
+                printf(" . ");
             else
-                printf("%c ", cell);
+                printf(" %c ", cell);
         }
         printf("\n");
     }
@@ -272,18 +256,19 @@ void print_board_state(BoardState *state)
 
     print_board(state, 1);
 
-    printf("Ships:\n");
+    printf("\nShips:\n");
     for (int i = 0; i < MAX_SHIP_NUM; i++)
     {
         Ship *s = &state->ships[i];
         if (s->size > 0)
         {
-            printf("- Type: %d, Pos: (%d,%d), Orient: %s, Hits: %d, Sunk: %d\n",
+            printf("- Type: %d, Pos: (%d,%d), Orient: %s, Hits: %d/%d, Sunk: %d\n",
                    s->ship_type,
                    s->row,
                    s->col,
                    s->orient == HORIZONTAL ? "H" : "V",
                    s->hits,
+                   s->size,
                    s->sunk);
         }
     }
