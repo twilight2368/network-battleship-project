@@ -26,7 +26,8 @@ YELLOW = (255, 255, 0)
 # ==========================================
 def send_json(sock, obj):
     try:
-        sock.sendall(json.dumps(obj).encode("utf-8"))
+        print(f"Sending: {obj}")  # Debug
+        sock.sendall(json.dumps(obj).encode("utf-8"))      
     except:
         pass
 
@@ -129,6 +130,53 @@ class BattleshipGUI:
         self.receiver_thread = threading.Thread(target=self.receive_messages, daemon=True)
         self.receiver_thread.start()
     
+    def show_confirm_dialog(self, text):
+        """Hiển thị dialog xác nhận. Trả về True nếu chọn Yes."""
+        dialog_width = 400
+        dialog_height = 200
+        x = (900 - dialog_width) // 2
+        y = (700 - dialog_height) // 2
+
+        while True:
+            for event in pygame.event.get():
+                if event.type == QUIT:
+                    return False
+                if event.type == MOUSEBUTTONDOWN:
+                    mx, my = pygame.mouse.get_pos()
+                    # Nút Yes
+                    if x+50 <= mx <= x+170 and y+120 <= my <= y+170:
+                        return True
+                    # Nút No
+                    if x+230 <= mx <= x+350 and y+120 <= my <= y+170:
+                        return False
+
+            # Nền mờ
+            overlay = pygame.Surface((900, 700))
+            overlay.set_alpha(120)
+            overlay.fill((0, 0, 0))
+            self.screen.blit(overlay, (0, 0))
+
+            # Hộp dialog
+            pygame.draw.rect(self.screen, (255, 255, 255), (x, y, dialog_width, dialog_height), border_radius=10)
+            pygame.draw.rect(self.screen, (0, 0, 0), (x, y, dialog_width, dialog_height), 3, border_radius=10)
+
+            # Text
+            text_surf = self.font_medium.render(text, True, (0, 0, 0))
+            self.screen.blit(text_surf, (x + 40, y + 40))
+
+            # Nút Yes
+            pygame.draw.rect(self.screen, (100, 200, 100), (x+50, y+120, 120, 50), border_radius=8)
+            yes_text = self.font_small.render("YES", True, (0, 0, 0))
+            self.screen.blit(yes_text, (x+95, y+135))
+
+            # Nút No
+            pygame.draw.rect(self.screen, (200, 100, 100), (x+230, y+120, 120, 50), border_radius=8)
+            no_text = self.font_small.render("NO", True, (0, 0, 0))
+            self.screen.blit(no_text, (x+275, y+135))
+
+            pygame.display.update()
+            self.clock.tick(60)
+
     def load_images(self):
         """Load and scale images"""
         try:
@@ -466,17 +514,27 @@ class BattleshipGUI:
             self.screen.blit(queue_text, text_rect)
             
             if self.draw_button(300, 400, 300, 50, "EXIT QUEUE"):
-                send_json(self.sock, {"type": "QUEUE_EXIT_REQ"})
+                if self.show_confirm_dialog("Exit matchmaking queue?"):
+                    send_json(self.sock, {"type": "QUEUE_EXIT_REQ"})
+                    self.show_message("Exited queue.")
+                else:
+                    self.show_message("Cancelled.")
+
         else:
             # Not in queue
             if self.draw_button(300, 250, 300, 50, "ENTER QUEUE"):
                 self.start_ship_placement()
             
             if self.draw_button(300, 320, 300, 50, "LOGOUT"):
-                send_json(self.sock, {"type": "LOGOUT"})
-                self.state["is_login"] = False
-                self.state["username"] = ""
-                self.state["user_id"] = 0
+                if self.show_confirm_dialog("Are you sure you want to logout?"):
+                    send_json(self.sock, {"type": "LOGOUT"})
+                    self.state["is_login"] = False
+                    self.state["username"] = ""
+                    self.state["user_id"] = 0
+                    self.show_message("Logged out!")
+                else:
+                    self.show_message("Logout cancelled")
+
     
     def draw_ship_placement_screen(self):
         """Draw ship placement screen"""
