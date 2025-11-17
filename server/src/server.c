@@ -424,10 +424,10 @@ int main(int argc, char const *argv[])
                             // Notify opponent
                             sendMatchResult(opponent->socket_fd, match->match_id, "WIN", new_elo_opponent);
 
+                            printf("[DISCONNECT IN GAME] Player %s disconnected, %s wins by default!\n", player->username, opponent->username);
+
                             // Remove match
                             removeMatchSession(match->match_id);
-
-                            printf("[DISCONNECT IN GAME] Player %s disconnected, %s wins by default!\n", player->username, opponent->username);
                         }
                     }
 
