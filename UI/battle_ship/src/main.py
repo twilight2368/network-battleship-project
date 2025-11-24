@@ -1,82 +1,95 @@
-import pygame
+# src/main.py
+
 import sys
 import os
-import importlib  # Dùng để reload config
-import config  
-from components.draw_button import Button
-from ui.settings.setting import setting_screens
-from ui.plays.choose_mode import choose_mode_screen
+import pygame
+from pygame.locals import *
 
-# ========== KHỞI TẠO PYGAME ==========
-pygame.init()
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# ========== CẤU HÌNH CỬA SỔ ==========
-os.environ['SDL_VIDEO_CENTERED'] = '1'
-screen = pygame.display.set_mode((config.WIDTH, config.HEIGHT))
-pygame.display.set_caption("BattleShip")
+# Import modules
+from src.controllers.game_controller import GameController
+from src.screens.login_screen import draw_login_screen, handle_login_events
+from src.screens.lobby_screen import draw_lobby_screen
+from src.screens.game_screen import draw_ship_placement_screen, draw_game_screen, handle_game_events
+from src.components.gui_elements import WHITE, BLACK, RED
+from src.network.networking import DEFAULT_HOST, DEFAULT_PORT
 
-# ========== FONT & CLOCK ==========
-font = pygame.font.Font(None, 40)
-title_font = pygame.font.Font(None, 60)
-clock = pygame.time.Clock()
 
-# ========== HÀM CẬP NHẬT NÚT ==========
-def update_buttons(neww=None, newh=None):
-    if newh is None:
-        newh = config.HEIGHT
-    if neww is None:
-        neww = config.WIDTH
+def run_game(controller):
+    """Vòng lặp game chính."""
+    pygame.init()
+    controller.screen = pygame.display.set_mode((900, 700))
+    pygame.display.set_caption("Battleship Game")
+    controller.clock = pygame.time.Clock()
+    
+    # Load fonts
+    controller.font_large = pygame.font.Font(None, 48)
+    controller.font_medium = pygame.font.Font(None, 32)
+    controller.font_small = pygame.font.Font(None, 24)
+    
+    # Load assets
+    controller.load_images()
+    
+    # Connect and start network thread
+    if not controller.connect_server():
+        pygame.quit()
+        return
 
-    start_btn = Button(neww // 2 - 100, newh // 2 - 30, 200, 60, "Start Game", font)
-    setting_btn = Button(neww // 2 - 100, newh // 2 + 50, 200, 60, "Settings", font)
-    quit_btn = Button(neww // 2 - 100, newh // 2 + 130, 200, 60, "Quit", font)
-    return start_btn, setting_btn, quit_btn
+    controller.start_receiver_thread()
+    
+    while controller.running:
+        # 1. Handle Events
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                controller.running = False
+            
+            if not controller.state["is_login"]:
+                handle_login_events(event, controller)
+            elif controller.state["in_game"] or controller.placing_ships:
+                handle_game_events(event, controller)
 
-# ========== BIẾN TRẠNG THÁI ==========
-start_button, setting_button, quit_button = update_buttons()
-current_width, current_height = config.WIDTH, config.HEIGHT
+        # 2. Draw Screen
+        if not controller.state["is_login"]:
+            draw_login_screen(controller)
+        elif controller.placing_ships:
+            draw_ship_placement_screen(controller)
+        elif controller.state["in_game"]:
+            draw_game_screen(controller)
+        else:
+            draw_lobby_screen(controller)
+        
+        # 3. Draw Global Message
+        if controller.message and pygame.time.get_ticks() < controller.message_timer:
+            msg_surf = controller.font_small.render(controller.message, True, RED)
+            msg_rect = msg_surf.get_rect(center=(450, 650))
+            # Draw background box for message
+            pygame.draw.rect(controller.screen, WHITE, (msg_rect.x - 5, msg_rect.y - 5, 
+                                                  msg_rect.width + 10, msg_rect.height + 10))
+            pygame.draw.rect(controller.screen, BLACK, (msg_rect.x - 5, msg_rect.y - 5,
+                                                  msg_rect.width + 10, msg_rect.height + 10), 1)
+            controller.screen.blit(msg_surf, msg_rect)
+        
+        # 4. Update Display
+        pygame.display.flip()
+        controller.clock.tick(60)
+    
+    # Cleanup
+    if controller.sock:
+        try:
+            controller.sock.close()
+        except:
+            pass
+    pygame.quit()
 
-# ========== VÒNG LẶP CHÍNH ==========
-running = True
 
-while running:
-    screen.fill(config.BG_COLOR)
+def main():
+    host = sys.argv[1] if len(sys.argv) >= 2 else DEFAULT_HOST
+    port = int(sys.argv[2]) if len(sys.argv) >= 3 else DEFAULT_PORT
+    
+    game_controller = GameController(host, port)
+    run_game(game_controller)
 
-    # ===== TIÊU ĐỀ (động theo kích thước) =====
-    title_text = title_font.render("MAIN MENU", True, (0, 0, 120))
-    screen.blit(title_text, (current_width // 2 - title_text.get_width() // 2, 100))
 
-    # ===== VẼ NÚT =====
-    start_button.draw(screen)
-    setting_button.draw(screen)
-    quit_button.draw(screen)
-
-    # ===== XỬ LÝ SỰ KIỆN =====
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-
-        if start_button.is_clicked(event):
-            choose_mode_screen(screen, font)
-
-        if setting_button.is_clicked(event):
-            new_size = setting_screens(screen, font)
-            importlib.reload(config)
-
-            # Nếu có kích thước mới => cập nhật lại
-            if new_size:
-                w, h = new_size
-                os.environ['SDL_VIDEO_CENTERED'] = '1'
-                screen = pygame.display.set_mode((w, h))
-                start_button, setting_button, quit_button = update_buttons(w, h)
-                current_width, current_height = w, h  # Cập nhật kích thước hiện tại
-
-        if quit_button.is_clicked(event):
-            pygame.quit()
-            sys.exit()
-
-    pygame.display.flip()
-    clock.tick(config.FPS)
-
-pygame.quit()
-sys.exit()
+if __name__ == "__main__":
+    main()
