@@ -7,7 +7,7 @@ from pygame.locals import *
 from src.components.gui_elements import WHITE, BLACK, BLUE, draw_button, show_confirm_dialog
 from src.network.networking import send_json
 
-def draw_lobby_screen(controller):
+def draw_lobby_screen(controller, clicked_events_occur):
     """Vẽ màn hình sảnh (lobby)."""
     screen = controller.screen
     state = controller.state
@@ -23,16 +23,19 @@ def draw_lobby_screen(controller):
         text_rect = queue_text.get_rect(center=(450, 300))
         screen.blit(queue_text, text_rect)
         
-        if draw_button(screen, controller.font_small, 300, 400, 300, 50, "EXIT QUEUE"):
+        if draw_button(screen, controller.font_small, 300, 400, 300, 50, "EXIT QUEUE", event_click=clicked_events_occur):
             if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_medium, "Exit matchmaking queue?"):
                 send_json(controller.sock, {"type": "QUEUE_EXIT_REQ"})
                 controller.show_message("Exited queue.")
 
+    
+    
+    
     else:
-        if draw_button(screen, controller.font_small, 300, 250, 300, 50, "ENTER QUEUE"):
+        if draw_button(screen, controller.font_small, 300, 250, 300, 50, "ENTER QUEUE", event_click=clicked_events_occur):
             controller.start_ship_placement()
         
-        if draw_button(screen, controller.font_small, 300, 320, 300, 50, "LOGOUT"):
+        if draw_button(screen, controller.font_small, 300, 320, 300, 50, "LOGOUT", event_click=clicked_events_occur):
             if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_medium, "Are you sure you want to logout?"):
                 send_json(controller.sock, {"type": "LOGOUT"})
                 state["is_login"] = False

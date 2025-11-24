@@ -55,7 +55,7 @@ def draw_board(controller, x_offset, y_offset, board, show_ships=True):
     
     return x_offset, y_offset, 300, 300
 
-def draw_ship_placement_screen(controller):
+def draw_ship_placement_screen(controller, clicked_events_occur):
     """Vẽ màn hình đặt tàu."""
     screen = controller.screen
     screen.fill(WHITE)
@@ -97,7 +97,7 @@ def draw_ship_placement_screen(controller):
                     s.fill(GREEN)
                     screen.blit(s, (cell_x + 2, cell_y + 2))
 
-def draw_game_screen(controller):
+def draw_game_screen(controller, clicked_events_occur):
     """Vẽ màn hình game chính."""
     screen = controller.screen
     state = controller.state
@@ -122,7 +122,7 @@ def draw_game_screen(controller):
     enemy_board_rect = draw_board(controller, 480, 130, state["enemy_board"], show_ships=False)
     
     # Buttons
-    if draw_button(screen, controller.font_small, 350, 500, 200, 50, "RESIGN"):
+    if draw_button(screen, controller.font_small, 350, 500, 200, 50, "RESIGN", event_click=clicked_events_occur):
         send_json(controller.sock, {
             "type": "RESIGN_REQ",
             "match_id": state["match_id"],

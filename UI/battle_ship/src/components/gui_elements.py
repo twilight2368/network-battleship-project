@@ -26,10 +26,13 @@ SHIP_SIZES = {
     "destroyer": 2
 }
 
-def draw_button(screen, font_small, x, y, width, height, text, color=GRAY):
-    """Vẽ nút và trả về True nếu nút được click."""
+# src/components/gui_elements.py (Hàm draw_button đã sửa đổi)
+
+def draw_button(screen, font_small, x, y, width, height, text, color=GRAY, event_click=False):
+    """Vẽ nút và trả về True nếu nút được click.
+    Tham số event_click là True nếu có sự kiện MOUSEBUTTONDOWN trong frame hiện tại."""
     mouse_pos = pygame.mouse.get_pos()
-    mouse_click = pygame.mouse.get_pressed()[0]
+    # Loại bỏ việc sử dụng pygame.mouse.get_pressed()
     
     hover = x < mouse_pos[0] < x + width and y < mouse_pos[1] < y + height
     
@@ -41,8 +44,13 @@ def draw_button(screen, font_small, x, y, width, height, text, color=GRAY):
     text_rect = text_surf.get_rect(center=(x + width // 2, y + height // 2))
     screen.blit(text_surf, text_rect)
     
-    return hover and mouse_click
-
+    # LOGIC MỚI: Chỉ kiểm tra hover VÀ sự kiện click chuột (MOUSEBUTTONDOWN) 
+    is_clicked = hover and event_click 
+    
+    if is_clicked:
+        print(f"Đang bấm nút: {text}") # Giữ lại logic in ra tên nút
+    
+    return is_clicked
 def draw_input_box(screen, font_small, x, y, width, height, input_active, input_text, placeholder=""):
     """Vẽ hộp nhập liệu."""
     color = BLUE if input_active else GRAY

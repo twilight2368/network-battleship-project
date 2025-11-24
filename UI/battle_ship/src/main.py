@@ -39,10 +39,13 @@ def run_game(controller):
     controller.start_receiver_thread()
     
     while controller.running:
+        clicked_events_occur = False
         # 1. Handle Events
         for event in pygame.event.get():
             if event.type == QUIT:
                 controller.running = False
+            if event.type == MOUSEBUTTONDOWN and event.button == 1:
+                clicked_events_occur = True
             
             if not controller.state["is_login"]:
                 handle_login_events(event, controller)
@@ -51,13 +54,13 @@ def run_game(controller):
 
         # 2. Draw Screen
         if not controller.state["is_login"]:
-            draw_login_screen(controller)
+            draw_login_screen(controller, clicked_events_occur)
         elif controller.placing_ships:
-            draw_ship_placement_screen(controller)
+            draw_ship_placement_screen(controller, clicked_events_occur)
         elif controller.state["in_game"]:
-            draw_game_screen(controller)
+            draw_game_screen(controller, clicked_events_occur)
         else:
-            draw_lobby_screen(controller)
+            draw_lobby_screen(controller, clicked_events_occur)
         
         # 3. Draw Global Message
         if controller.message and pygame.time.get_ticks() < controller.message_timer:

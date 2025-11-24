@@ -215,6 +215,10 @@ class GameController:
         
         if self.current_ship_index >= len(self.ships_to_place):
             self.placing_ships = False
+            
+            #FIX LOGOUT_BUG
+            self.state["in_queue"] = True
+            
             send_json(self.sock, {"type": "QUEUE_ENTER_REQ", "ships": self.placed_ships})
             self.show_message("Ships placed! Entering queue...")
     
