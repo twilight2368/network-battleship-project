@@ -152,7 +152,7 @@ class GameController:
                                     (msg.get("first_turn", 0) == 0 and not is_player1)
             
             self.show_message(f"Match found! Opponent: {self.state['enemy_name']}")
-            self.start_ship_placement()
+            #self.start_ship_placement()
             
             
         elif t == "MOVE_RESULT":

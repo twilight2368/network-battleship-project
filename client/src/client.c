@@ -122,6 +122,7 @@ int main(int argc, char *argv[])
             if (n <= 0)
                 break;
             printf("[client --> server] \n");
+            printf("%s \n", buffer);
             send(server_fd, buffer, n, 0);
         }
 
@@ -132,6 +133,7 @@ int main(int argc, char *argv[])
             if (n <= 0)
                 break;
             printf("[server --> client] \n");
+            printf("%s \n", buffer);
             send(client_fd, buffer, n, 0);
         }
     }

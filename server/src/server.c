@@ -1022,7 +1022,6 @@ int main(int argc, char const *argv[])
                                 sendError(client_fd, "LOBBY_CLOSE_REQ requires 'code'.");
                             }
                         }
-
                         else // todo: UNKNOWN
                         {
                             printf("[UNKNOWN] %s:%d\n", inet_ntoa(player->addr.sin_addr), ntohs(player->addr.sin_port));
