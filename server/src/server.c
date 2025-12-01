@@ -547,7 +547,7 @@ int main(int argc, char const *argv[])
                 else
                 {
                     buffer[valread] = '\0';
-                    printf("%s \n", buffer);
+                    // printf("%s \n", buffer);
                     cJSON *payload = cJSON_Parse(buffer);
                     if (!payload)
                     {
@@ -994,7 +994,7 @@ int main(int argc, char const *argv[])
                             }
                         }
                         // todo: CLOSE LOBBY
-                        if (strcmp(endpoint, "ROOM_CLOSE_REQ") == 0)
+                        else if (strcmp(endpoint, "ROOM_CLOSE_REQ") == 0)
                         {
                             printf("[LOBBY] Received ROOM_CLOSE_REQ from %s.\n", player->username);
 
