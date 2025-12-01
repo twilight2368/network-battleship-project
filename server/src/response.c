@@ -95,3 +95,42 @@ int sendMatchResult(int socket_fd, int match_id, const char *result, int new_elo
     cJSON_Delete(msg);
     return 1;
 }
+
+//update: for lobby room
+int sendCreateRoomResult(int sock_fd, const int result, const char *code)
+{
+    cJSON *msg = cJSON_CreateObject();
+    cJSON_AddStringToObject(msg, "type", "CREATE_ROOM_RES");
+    cJSON_AddNumberToObject(msg, "result", result);
+    
+    if (result == 1) {
+        cJSON_AddStringToObject(msg, "code", code);
+    }
+
+    sendResponse(sock_fd, msg);
+    cJSON_Delete(msg);
+    return 1;
+}
+
+int sendJoinRoomResult(int sock_fd, const int result)
+{
+    cJSON *msg = cJSON_CreateObject();
+    cJSON_AddStringToObject(msg, "type", "JOIN_ROOM_RES");
+    cJSON_AddNumberToObject(msg, "result", result);
+    
+    sendResponse(sock_fd, msg);
+    cJSON_Delete(msg);
+    return 1;
+}
+
+int sendLobbyCloseResult(int socket_fd, int result, const char *message)
+{
+    cJSON *msg = cJSON_CreateObject();
+    cJSON_AddStringToObject(msg, "type", "ROOM_CLOSE_RES"); 
+    cJSON_AddNumberToObject(msg, "result", result);
+    cJSON_AddStringToObject(msg, "message", message);
+    
+    int sent = sendResponse(socket_fd, msg);
+    cJSON_Delete(msg);
+    return sent;
+}
