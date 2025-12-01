@@ -19,13 +19,12 @@
 pthread_mutex_t connections_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t match_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t rooms_lock = PTHREAD_MUTEX_INITIALIZER;
 
 #define PORT 8080
 #define BUFFER_SIZE 1024
 #define MAX_CLIENTS 100
 #define MAX_MATCHES_NUM 50
-#define MAX_CUSTOM_LOBBIES 50 //update: custom lobby
+#define MAX_CUSTOM_LOBBIES 50 // update: custom lobby
 // todo: =============== TYPES DEFINITIONS =================
 typedef struct
 {
@@ -58,15 +57,12 @@ typedef struct
     int current_turn;
 } MatchSession;
 
-//update: custom lobby
+// update: custom lobby
 typedef struct
 {
     char code[6];
     int host_user_id;
-    int guest_user_id;
-    int is_ready;
-    int match_id;
-    int host_socket_fd; //socket fd of host
+    int host_socket_fd; // socket fd of host
 } CustomRoom;
 
 // todo: ================ DATABASE =============================
@@ -76,7 +72,7 @@ Database db;
 Player connectedPlayers[MAX_CLIENTS];
 WaitingPlayer queuePlayer[MAX_CLIENTS];
 MatchSession matchSessionList[MAX_MATCHES_NUM];
-CustomRoom customRoomList[MAX_CUSTOM_LOBBIES]; //update: custom lobby
+CustomRoom customRoomList[MAX_CUSTOM_LOBBIES]; // update: custom lobby
 
 // todo: ================= HELPER FUNCITONS =====================
 
@@ -102,80 +98,86 @@ Player *getPlayerByUserId(int user_id)
     return NULL;
 }
 
-//todo: ================= LOBBIES FUNCITONS =====================
-//generate random room code
-void generateRoomCode(char *code) {
-    const char charset[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    const size_t max_index = (sizeof(charset) - 1);
-    for (int i = 0; i < 5; i++) {
-        code[i] = charset[rand() % max_index];
-    }
-    code[5] = '\0';
-}
+// todo: ================= LOBBIES FUNCITONS =====================
 
-//find room by code
-CustomRoom* findRoomByCode(const char *code) {
-    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++) {
-        if (customRoomList[i].host_user_id != 0 && strcmp(customRoomList[i].code, code) == 0) {
+// find room by code
+CustomRoom *findRoomByCode(const char *code)
+{
+    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++)
+    {
+        if (customRoomList[i].host_user_id != 0 && strcmp(customRoomList[i].code, code) == 0)
+        {
             return &customRoomList[i];
         }
     }
     return NULL;
 }
 
-//find empty room slot
-CustomRoom* findEmptyRoom() {
-    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++) {
-        if (customRoomList[i].host_user_id == 0) {
+CustomRoom *findRoomByHostId(int user_id)
+{
+    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++)
+    {
+        if (customRoomList[i].host_user_id == user_id)
+        {
             return &customRoomList[i];
         }
     }
     return NULL;
 }
 
-//generate lobby
-void initRooms() {
-    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++) {
+// find empty room slot
+CustomRoom *findEmptyRoom()
+{
+    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++)
+    {
+        if (customRoomList[i].host_user_id == 0)
+        {
+            return &customRoomList[i];
+        }
+    }
+    return NULL;
+}
+
+// generate lobby
+void initRooms()
+{
+    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++)
+    {
         memset(&customRoomList[i], 0, sizeof(CustomRoom));
         customRoomList[i].code[0] = '\0';
     }
 }
 
-//delete lobby
-int removeCustomLobby(const char *code, int user_id) {
-    // 1. Khóa Mutex
-    pthread_mutex_lock(&rooms_lock);
+// delete lobby
+int removeCustomLobby(const char *code, int user_id)
+{
 
     int success = 0;
 
-    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++) {
+    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++)
+    {
         CustomRoom *lobby = &customRoomList[i];
-        
+
         // 2. Tìm Lobby đang hoạt động và có mã trùng khớp
-        if (lobby != NULL && strcmp(lobby->code, code) == 0) {
-            
+        if (lobby != NULL && strcmp(lobby->code, code) == 0)
+        {
+
             // 3. Xác minh người yêu cầu có phải là Host không
-            if (lobby->host_user_id == user_id) {
-                
-                lobby->host_user_id = 0;
-                lobby->guest_user_id = 0;
-                lobby->host_socket_fd = 0;
-                lobby->match_id = 0;
-                lobby->is_ready = 0;
-                memset(lobby->code, 0, sizeof(lobby->code)); 
-                
+            if (lobby->host_user_id == user_id)
+            {
+
+                memset(lobby, 0, sizeof(lobby));
                 success = 1;
                 break; // Thoát khỏi vòng lặp
-            } else {
-                success = 0; 
+            }
+            else
+            {
+                success = 0;
                 break;
             }
         }
     }
 
-    // 4. Mở khóa Mutex
-    pthread_mutex_unlock(&rooms_lock);
-    
     return success;
 }
 // todo: ================= QUEUE FUNCTION ======================
@@ -521,6 +523,19 @@ int main(int argc, char const *argv[])
                         }
                     }
 
+                    if (player->user_id != 0 && player->is_login)
+                    {
+                        CustomRoom *room_to_remove = findRoomByHostId(player->user_id);
+                        if (removeCustomLobby(room_to_remove->code, player->user_id))
+                        {
+                            printf("Remove room success... \n");
+                        }
+                        else
+                        {
+                            printf("Remove room failed... \n");
+                        }
+                    }
+
                     if (player)
                         printf("Disconnection from %s:%d\n", inet_ntoa(player->addr.sin_addr), ntohs(player->addr.sin_port));
                     pthread_mutex_lock(&connections_lock);
@@ -532,7 +547,7 @@ int main(int argc, char const *argv[])
                 else
                 {
                     buffer[valread] = '\0';
-                    // printf("%s \n", buffer);
+                    printf("%s \n", buffer);
                     cJSON *payload = cJSON_Parse(buffer);
                     if (!payload)
                     {
@@ -901,10 +916,10 @@ int main(int argc, char const *argv[])
                             // Remove match from session
                             removeMatchSession(match_id);
                         }
-                        // todo: CREATE CUSTOM LOBBY
+                        // todo: CREATE CUSTOM ROOM
                         else if (strcmp(endpoint, "CREATE_ROOM_REQ") == 0)
                         {
-                            pthread_mutex_lock(&rooms_lock);
+
                             CustomRoom *room = findEmptyRoom();
 
                             if (room == NULL)
@@ -915,104 +930,98 @@ int main(int argc, char const *argv[])
                             {
                                 char new_code[6];
                                 generateRoomCode(new_code);
-                                
+
                                 strcpy(room->code, new_code);
                                 room->host_user_id = player->user_id;
                                 room->host_socket_fd = client_fd;
-                                room->guest_user_id = 0;
-                                room->is_ready = 0;
-                                room->match_id = 0;
-                                
+                                printf("Created room success: %s \n", room->code);
                                 sendCreateRoomResult(client_fd, 1, new_code);
                             }
-                            pthread_mutex_unlock(&rooms_lock);
                         }
-                        //todo: JOIN CUSTOM LOBBY
+                        // todo: JOIN CUSTOM LOBBY
                         else if (strcmp(endpoint, "JOIN_ROOM_REQ") == 0)
                         {
                             char *code = cJSON_GetObjectItem(payload, "code")->valuestring;
 
-                            pthread_mutex_lock(&rooms_lock);
                             CustomRoom *room = findRoomByCode(code);
 
-                            if (room == NULL || room->guest_user_id != 0 || room->host_user_id == player->user_id)
+                            if (room == NULL || room->host_user_id == player->user_id)
                             {
-                                //not found room response
+                                // not found room response
                                 sendResult(client_fd, "JOIN_ROOM_RES", 0, "Room not found or already full.");
                             }
                             else
                             {
-                                // 1. Cập nhật phòng
-                                room->guest_user_id = player->user_id;
-                                room->is_ready = 1;
 
-                                // 2. Lấy thông tin player
+                                //  Lấy thông tin player
                                 Player *host_player = getPlayerByUserId(room->host_user_id);
-                                Player *guest_player = getPlayerByUserId(room->guest_user_id);
 
-                                if (host_player != NULL && guest_player != NULL)
+                                if (host_player != NULL)
                                 {
                                     BoardState host_board, guest_board;
-                                    init_board_state(&host_board); 
-                                    init_board_state(&guest_board); 
-                                    int new_match_id = createMatchSession(*host_player, *guest_player, host_board, guest_board);
-                                    room->match_id = new_match_id;
-                                    
+                                    init_board_state(&host_board);
+                                    init_board_state(&guest_board);
+                                    int new_match_id = createMatchSession(*host_player, *player, host_board, guest_board);
+
+                                    pthread_mutex_lock(&connections_lock);
                                     // 4. Cập nhật trạng thái client
                                     host_player->in_game = 1;
                                     player->in_game = 1;
+                                    pthread_mutex_unlock(&connections_lock);
 
                                     // 5. Gửi MATCH_FOUND cho cả hai
                                     sendNotifyMatchFound(host_player->socket_fd, new_match_id, host_player->username, player->username, 1); // Host đi trước
-                                    sendNotifyMatchFound(client_fd, new_match_id, host_player->username, player->username, 0); // Guest đi sau
-                                    
-                                    printf("[CUSTOM GAME] Match %d started: %s (Host) vs %s (Guest)\n", 
-                                        new_match_id, host_player->username, player->username);
+                                    sendNotifyMatchFound(client_fd, new_match_id, host_player->username, player->username, 0);              // Guest đi sau
+
+                                    printf("[CUSTOM GAME] Match %d started: %s (Host) vs %s (Guest)\n",
+                                           new_match_id, host_player->username, player->username);
+
+                                    if (removeCustomLobby(room->code, room->host_user_id))
+                                    {
+                                        printf("Remove room success... \n");
+                                    }
+                                    else
+                                    {
+                                        printf("Remove room failed... \n");
+                                    }
                                 }
                                 else
                                 {
-                                    sendResult(room->host_socket_fd, "ROOM_CLOSE_RES", 0, "Guest player not found, closing room.");
-                                    room->guest_user_id = 0; // Reset
+                                    sendResult(room->host_socket_fd, "JOIN_ROOM_RES", 0, "Something went wrong.");
                                 }
-                                
+
                                 // * Không cần gửi JOIN_ROOM_RES thành công, vì MATCH_FOUND sẽ thay thế.
                             }
-                            pthread_mutex_unlock(&rooms_lock);
                         }
-                        //todo: close lobby
+                        // todo: CLOSE LOBBY
                         if (strcmp(endpoint, "ROOM_CLOSE_REQ") == 0)
                         {
                             printf("[LOBBY] Received ROOM_CLOSE_REQ from %s.\n", player->username);
-                            
+
                             cJSON *code_obj = cJSON_GetObjectItemCaseSensitive(payload, "code");
-                            
+
                             if (cJSON_IsString(code_obj) && code_obj->valuestring != NULL)
                             {
                                 char *lobby_code = code_obj->valuestring;
-                                
-                                if (removeCustomLobby(lobby_code, player->user_id)) 
+
+                                if (removeCustomLobby(lobby_code, player->user_id))
                                 {
                                     printf("[LOBBY] Room %s successfully closed by %s.\n", lobby_code, player->username);
-                                    // 2. Gửi phản hồi thành công
+                                    // Gửi phản hồi thành công
                                     sendResult(client_fd, "ROOM_CLOSE_RES", 1, "Lobby closed successfully.");
                                 }
                                 else
                                 {
                                     printf("[LOBBY] Failed to close room %s. User %s is not the host or room doesn't exist.\n", lobby_code, player->username);
-                                    // 3. Gửi phản hồi thất bại
+                                    // Gửi phản hồi thất bại
                                     sendResult(client_fd, "ROOM_CLOSE_RES", 0, "Failed to close lobby. You may not be the host or the room does not exist.");
                                 }
-                                
-                                // Đặt lại trạng thái của người chơi về Lobby chính
-                                player->in_game = 0; // Đảm bảo thoát khỏi trạng thái in_game nếu có
-                                //player->in_custom_lobby = 0; 
                             }
                             else
                             {
                                 sendError(client_fd, "LOBBY_CLOSE_REQ requires 'code'.");
                             }
                         }
-
 
                         else // todo: UNKNOWN
                         {
