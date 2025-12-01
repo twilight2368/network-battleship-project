@@ -23,7 +23,13 @@ class GameController:
             "match_id": 0,
             "enemy_name": "",
             "my_board": [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)],
-            "enemy_board": [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+            "enemy_board": [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)],
+            
+            #Lobby state
+            "in_custom_lobby": False,
+            "is_host": False,
+            "lobby_code": "",
+            "opponent_joined": False,
         }
         
         # Ship placement logic (Giữ nguyên)
@@ -56,7 +62,7 @@ class GameController:
         self.water_img = None
         self.ship_images = {}
         
-    # --- Public Methods ---
+    ### Server Connection Methods ###
     
     def connect_server(self):
         """Connect to server"""
@@ -106,18 +112,49 @@ class GameController:
             else:
                 self.show_message(msg.get("message", "Enter queue failed"))
         
-        elif t == "MATCH_FOUND":
-            self.state["in_queue"] = False
+        elif t == "CREATE_ROOM_RES":
+            if msg.get("result", 0) == 1:
+                self.state["in_custom_lobby"] = True
+                self.state["is_host"] = True
+                self.state["lobby_code"] = msg["code"]
+                self.show_message(f"Lobby hosted! Code: {msg['code']}")
+            else:
+                self.show_message(msg.get("message", "Failed to host lobby")) # Server nên gửi message chi tiết hơn
+
+        elif t == "JOIN_ROOM_RES":
+            if msg.get("result", 0) == 0:
+                self.input_mode = "join_lobby_code" # Quay lại màn nhập mã
+                self.input_active = True
+                self.show_message("Failed to join lobby. Check code or room is full.")
+            # Chú ý: Trường hợp thành công sẽ được server gửi MATCH_FOUND thay thế.
+          
+        elif t == "MATCH_FOUND": 
+            # Đảm bảo logic custom lobby được xử lý đúng (MATCH_FOUND tự động bắt đầu game)
+            
+            # Cả 2 client (Host & Guest) đều nhận MATCH_FOUND
             self.state["in_game"] = True
+            self.state["in_queue"] = False
+            
+            # Nếu đang ở chế độ Custom Lobby, xóa input mode
+            if self.state["in_custom_lobby"]:
+                self.input_mode = None
+                self.input_active = False
+                self.state["opponent_joined"] = True # Cập nhật trạng thái đối thủ cho Host
+            
             self.state["match_id"] = msg["match_id"]
             
-            p1, p2 = msg["player1"], msg["player2"]
-            self.state["enemy_name"] = p2 if self.state["username"] == p1 else p1
-            self.state["my_turn"] = (msg["first_turn"] == self.state["user_id"])
+            # Tên đối thủ phụ thuộc vào việc mình là player1 hay player2 trong JSON
+            is_player1 = self.state["username"] == msg["player1"]
+            self.state["enemy_name"] = msg["player2"] if is_player1 else msg["player1"]
             
-            turn_msg = "Your turn!" if self.state["my_turn"] else "Opponent's turn"
-            self.show_message(f"Match found vs {self.state['enemy_name']}! {turn_msg}")
-        
+            # Kiểm tra xem mình có phải là người đi trước không
+            self.state["my_turn"] = (msg.get("first_turn", 0) == 1 and is_player1) or \
+                                    (msg.get("first_turn", 0) == 0 and not is_player1)
+            
+            self.show_message(f"Match found! Opponent: {self.state['enemy_name']}")
+            self.start_ship_placement()
+            
+            
         elif t == "MOVE_RESULT":
             attacker = msg["attacker"]
             r, c = msg["row"], msg["col"]
@@ -169,6 +206,7 @@ class GameController:
         self.message_timer = pygame.time.get_ticks() + 3000
         print(f"Message: {text}")
 
+    ### Ship Placement Methods ###
     def start_ship_placement(self):
         """Khởi động giai đoạn đặt tàu."""
         # ... (Giữ nguyên logic start_ship_placement)
@@ -222,6 +260,40 @@ class GameController:
             send_json(self.sock, {"type": "QUEUE_ENTER_REQ", "ships": self.placed_ships})
             self.show_message("Ships placed! Entering queue...")
     
+    ### For Custom Lobby ###
+    
+    def host_lobby_mode(self):
+        # Dùng user_id của client để tạo phòng
+        send_json(self.sock, {"type": "CREATE_ROOM_REQ", "user_id": self.state["user_id"]})
+        self.show_message("Requesting to host a game...")
+
+    def join_lobby_mode(self):
+        self.state["in_custom_lobby"] = True
+        self.state["is_host"] = False
+        self.state["lobby_code"] = ""
+        self.state["opponent_joined"] = False
+        
+        # BẬT CHẾ ĐỘ NHẬP LIỆU:
+        self.input_mode = "join_lobby_code" 
+        self.input_text = ""               
+        self.input_active = True           
+        self.show_message("Ready to join lobby.")
+
+    def return_to_lobby(self):
+        if self.state["in_custom_lobby"]:
+            if self.state["is_host"]:
+                send_json(self.sock, {"type": "ROOM_CLOSE_REQ", "code": self.state["lobby_code"]})
+            
+        self.state["in_custom_lobby"] = False
+        self.state["is_host"] = False
+        self.state["lobby_code"] = ""
+        self.state["opponent_joined"] = False
+        self.input_mode = None
+        self.input_active = False
+        self.input_text = ""
+        self.show_message("Returned to lobby.")
+        
+    ### Image Loading ###
     def load_images(self):
         """Load và scale hình ảnh, in ra chi tiết lỗi tải ảnh."""
         self.water_img = None

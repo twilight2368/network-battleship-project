@@ -51,6 +51,7 @@ def draw_button(screen, font_small, x, y, width, height, text, color=GRAY, event
         print(f"Đang bấm nút: {text}") # Giữ lại logic in ra tên nút
     
     return is_clicked
+
 def draw_input_box(screen, font_small, x, y, width, height, input_active, input_text, placeholder=""):
     """Vẽ hộp nhập liệu."""
     color = BLUE if input_active else GRAY
