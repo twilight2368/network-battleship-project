@@ -105,6 +105,17 @@ int sendMatchResult(int socket_fd, int match_id, const char *result, int new_elo
     return 1;
 }
 
+int sendChatGame(int socket_fd, int match_id, const char *message)
+{
+    cJSON *msg = cJSON_CreateObject();
+    cJSON_AddStringToObject(msg, "type", "CHAT_GAME");
+    cJSON_AddNumberToObject(msg, "match_id", match_id);
+    cJSON_AddStringToObject(msg, "message", message);
+    sendResponse(socket_fd, msg);
+    cJSON_Delete(msg);
+    return 1;
+}
+
 // update: for lobby room
 int sendCreateRoomResult(int sock_fd, const int result, const char *code)
 {

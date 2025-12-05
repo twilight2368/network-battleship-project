@@ -688,7 +688,6 @@ int main(int argc, char const *argv[])
                                 sendResult(client_fd, "QUEUE_EXIT_RES", 0, "Exit queue failed");
                             }
                         }
-
                         // todo: PLACE SHIP
                         else if (strcmp(endpoint, "PLACE_SHIP") == 0)
                         {
@@ -751,7 +750,6 @@ int main(int argc, char const *argv[])
                                 sendNotifyMatchStart(match_session->player_2.socket_fd, match_session->match_id, match_session->current_turn);
                             }
                         }
-
                         // todo: MOVE
                         else if (strcmp(endpoint, "MOVE_REQ") == 0)
                         {
@@ -958,6 +956,33 @@ int main(int argc, char const *argv[])
 
                             // Remove match from session
                             removeMatchSession(match_id);
+                        }
+                        // todo: CHAT INGAME
+                        else if (strcmp(endpoint, "CHAT_GAME"))
+                        {
+                            cJSON *match_id = cJSON_GetObjectItem(payload, "match_id");
+
+                            cJSON *message = cJSON_GetObjectItem(payload, "message");
+                            if (!match_id || !message)
+                            {
+                                sendError(client_fd, "Required fields is not fulfilling");
+                                continue;
+                            }
+
+                            MatchSession *match_session = getMatchById(match_id->valueint);
+
+                            if (player->user_id == match_session->player_1.user_id)
+                            {
+                                sendChatGame(match_session->player_2.socket_fd, match_id->valueint, message->valuestring);
+                            }
+                            else if (player->user_id == match_session->player_2.user_id)
+                            {
+                                sendChatGame(match_session->player_1.socket_fd, match_id->valueint, message->valuestring);
+                            }
+                            else
+                            {
+                                sendError(client_fd, "You're not in this match");
+                            }
                         }
                         // todo: CREATE CUSTOM ROOM
                         else if (strcmp(endpoint, "CREATE_ROOM_REQ") == 0)
