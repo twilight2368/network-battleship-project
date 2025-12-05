@@ -52,17 +52,26 @@ int sendLoginResult(int sock_fd, int user_id, const char *username, int elo)
     return 1;
 }
 
-int sendNotifyMatchFound(int sock_fd, int match_id, char *player_1_username, char *player_2_username, int first_turn)
+int sendNotifyMatchFound(int sock_fd, int match_id, char *player_1_username, char *player_2_username)
 {
     cJSON *msg = cJSON_CreateObject();
     cJSON_AddStringToObject(msg, "type", "MATCH_FOUND");
     cJSON_AddNumberToObject(msg, "match_id", match_id);
     cJSON_AddStringToObject(msg, "player1", player_1_username);
     cJSON_AddStringToObject(msg, "player2", player_2_username);
-    cJSON_AddNumberToObject(msg, "first_turn", first_turn);
-
     sendResponse(sock_fd, msg);
 
+    cJSON_Delete(msg);
+    return 1;
+}
+
+int sendNotifyMatchStart(int sock_fd, int match_id, int first_turn)
+{
+    cJSON *msg = cJSON_CreateObject();
+    cJSON_AddStringToObject(msg, "type", "MATCH_START");
+    cJSON_AddNumberToObject(msg, "match_id", match_id);
+    cJSON_AddNumberToObject(msg, "first_turn", first_turn);
+    sendResponse(sock_fd, msg);
     cJSON_Delete(msg);
     return 1;
 }
@@ -96,41 +105,19 @@ int sendMatchResult(int socket_fd, int match_id, const char *result, int new_elo
     return 1;
 }
 
-//update: for lobby room
+// update: for lobby room
 int sendCreateRoomResult(int sock_fd, const int result, const char *code)
 {
     cJSON *msg = cJSON_CreateObject();
     cJSON_AddStringToObject(msg, "type", "CREATE_ROOM_RES");
     cJSON_AddNumberToObject(msg, "result", result);
-    
-    if (result == 1) {
+
+    if (result == 1)
+    {
         cJSON_AddStringToObject(msg, "code", code);
     }
 
     sendResponse(sock_fd, msg);
     cJSON_Delete(msg);
     return 1;
-}
-
-int sendJoinRoomResult(int sock_fd, const int result)
-{
-    cJSON *msg = cJSON_CreateObject();
-    cJSON_AddStringToObject(msg, "type", "JOIN_ROOM_RES");
-    cJSON_AddNumberToObject(msg, "result", result);
-    
-    sendResponse(sock_fd, msg);
-    cJSON_Delete(msg);
-    return 1;
-}
-
-int sendLobbyCloseResult(int socket_fd, int result, const char *message)
-{
-    cJSON *msg = cJSON_CreateObject();
-    cJSON_AddStringToObject(msg, "type", "ROOM_CLOSE_RES"); 
-    cJSON_AddNumberToObject(msg, "result", result);
-    cJSON_AddStringToObject(msg, "message", message);
-    
-    int sent = sendResponse(socket_fd, msg);
-    cJSON_Delete(msg);
-    return sent;
 }

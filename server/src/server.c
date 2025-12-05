@@ -44,7 +44,7 @@ typedef struct
 typedef struct
 {
     Player player;
-    BoardState board;
+    // BoardState board;
 } WaitingPlayer;
 
 typedef struct
@@ -52,6 +52,8 @@ typedef struct
     int match_id;
     Player player_1;
     Player player_2;
+    int player_1_ready;
+    int player_2_ready;
     BoardState board_p1;
     BoardState board_p2;
     int current_turn;
@@ -181,7 +183,7 @@ int removeCustomLobby(const char *code, int user_id)
     return success;
 }
 // todo: ================= QUEUE FUNCTION ======================
-int enqueuePlayer(Player p, BoardState board)
+int enqueuePlayer(Player p)
 {
     pthread_mutex_lock(&queue_lock);
     for (int i = 0; i < MAX_CLIENTS; i++)
@@ -189,7 +191,6 @@ int enqueuePlayer(Player p, BoardState board)
         if (queuePlayer[i].player.user_id == 0)
         {
             queuePlayer[i].player = p;
-            queuePlayer[i].board = board;
             pthread_mutex_unlock(&queue_lock);
             return 1;
         }
@@ -215,7 +216,7 @@ int dequeuePlayer(int user_id)
 }
 
 // todo: ================= MATCHMAKING FUNCTION =================
-int createMatchSession(Player p1, Player p2, BoardState b1, BoardState b2)
+int createMatchSession(Player p1, Player p2)
 {
     pthread_mutex_lock(&match_lock);
     for (int i = 0; i < MAX_MATCHES_NUM; i++)
@@ -227,8 +228,6 @@ int createMatchSession(Player p1, Player p2, BoardState b1, BoardState b2)
             matchSessionList[i].match_id = new_match_id;
             matchSessionList[i].player_1 = p1;
             matchSessionList[i].player_2 = p2;
-            matchSessionList[i].board_p1 = b1;
-            matchSessionList[i].board_p2 = b2;
             matchSessionList[i].current_turn = (rand() % 2 == 0) ? p1.user_id : p2.user_id; //? RANDOM THE FIRST TURN
             printf("[NEW MATCH] Match %d: %s (%d) vs %s (%d). \n", new_match_id, p1.username, p1.elo, p2.username, p2.elo);
             pthread_mutex_unlock(&match_lock);
@@ -325,10 +324,8 @@ void *matchmaking_thread(void *arg)
 
                 Player p1 = queuePlayer[i].player;
                 Player p2 = queuePlayer[j].player;
-                BoardState b1 = queuePlayer[i].board;
-                BoardState b2 = queuePlayer[j].board;
 
-                int match_id = createMatchSession(p1, p2, b1, b2);
+                int match_id = createMatchSession(p1, p2);
                 if (match_id <= 0)
                     continue;
 
@@ -349,12 +346,12 @@ void *matchmaking_thread(void *arg)
                 pthread_mutex_unlock(&connections_lock);
 
                 // todo: Send notify to each players
-                if (sendNotifyMatchFound(p1.socket_fd, new_match->match_id, p1.username, p2.username, new_match->current_turn))
+                if (sendNotifyMatchFound(p1.socket_fd, new_match->match_id, p1.username, p2.username))
                 {
                     printf("[INFO] Send match invitation to %s socket %d. \n", p1.username, p1.socket_fd);
                 }
 
-                if (sendNotifyMatchFound(p2.socket_fd, new_match->match_id, p1.username, p2.username, new_match->current_turn))
+                if (sendNotifyMatchFound(p2.socket_fd, new_match->match_id, p1.username, p2.username))
                 {
                     printf("[INFO] Send match invitation to %s socket %d. \n", p2.username, p2.socket_fd);
                 }
@@ -526,7 +523,7 @@ int main(int argc, char const *argv[])
                     if (player->user_id != 0 && player->is_login)
                     {
                         CustomRoom *room_to_remove = findRoomByHostId(player->user_id);
-                        if (removeCustomLobby(room_to_remove->code, player->user_id))
+                        if (room_to_remove != NULL && removeCustomLobby(room_to_remove->code, player->user_id))
                         {
                             printf("Remove room success... \n");
                         }
@@ -659,30 +656,8 @@ int main(int argc, char const *argv[])
                                 continue;
                             }
 
-                            cJSON *ships_json = cJSON_GetObjectItem(payload, "ships");
-                            if (!ships_json || !cJSON_IsObject(ships_json))
-                            {
-                                sendResult(client_fd, "QUEUE_ENTER_RES", 0, "No ships was found");
-                                continue;
-                            }
-
-                            // todo: Init board for player
-                            BoardState board;
-                            init_board_state(&board);
-
-                            // todo: Place ship
-                            if (!place_ship_from_json(&board, ships_json, "carrier", CARRIER) ||
-                                !place_ship_from_json(&board, ships_json, "battleship", BATTLESHIP) ||
-                                !place_ship_from_json(&board, ships_json, "cruiser", CRUISER) ||
-                                !place_ship_from_json(&board, ships_json, "submarine", SUBMARINE) ||
-                                !place_ship_from_json(&board, ships_json, "destroyer", DESTROYER))
-                            {
-                                sendResult(client_fd, "QUEUE_ENTER_RES", 0, "Failed to place ship");
-                                continue;
-                            }
-
                             // todo:  Add player to queue
-                            if (enqueuePlayer(*player, board))
+                            if (enqueuePlayer(*player))
                             {
                                 pthread_mutex_lock(&connections_lock);
                                 player->in_queue = 1;
@@ -713,6 +688,70 @@ int main(int argc, char const *argv[])
                                 sendResult(client_fd, "QUEUE_EXIT_RES", 0, "Exit queue failed");
                             }
                         }
+
+                        // todo: PLACE SHIP
+                        else if (strcmp(endpoint, "PLACE_SHIP") == 0)
+                        {
+                            cJSON *ships_json = cJSON_GetObjectItem(payload, "ships");
+                            if (!ships_json || !cJSON_IsObject(ships_json))
+                            {
+                                sendResult(client_fd, "QUEUE_ENTER_RES", 0, "No ships was found");
+                                continue;
+                            }
+
+                            // todo: Init board for player
+                            BoardState board;
+                            init_board_state(&board);
+
+                            // todo: Place ship
+                            if (!place_ship_from_json(&board, ships_json, "carrier", CARRIER) ||
+                                !place_ship_from_json(&board, ships_json, "battleship", BATTLESHIP) ||
+                                !place_ship_from_json(&board, ships_json, "cruiser", CRUISER) ||
+                                !place_ship_from_json(&board, ships_json, "submarine", SUBMARINE) ||
+                                !place_ship_from_json(&board, ships_json, "destroyer", DESTROYER))
+                            {
+                                sendResult(client_fd, "PLACE_SHIP_RES", 0, "Failed to place ship");
+                                continue;
+                            }
+
+                            cJSON *match_id = cJSON_GetObjectItem(payload, "match_id");
+                            cJSON *user_id = cJSON_GetObjectItem(payload, "user_id");
+                            MatchSession *match_session = getMatchById(match_id->valueint);
+                            if (!match_id || !user_id || match_session == NULL)
+                            {
+                                sendResult(client_fd, "PLACE_SHIP_RES", 0, "No user id or match was found");
+                                continue;
+                            }
+
+                            if (user_id->valueint == match_session->player_1.user_id)
+                            {
+                                pthread_mutex_lock(&match_lock);
+                                match_session->player_1_ready = 1,
+                                match_session->board_p1 = board;
+                                pthread_mutex_unlock(&match_lock);
+                                sendResult(client_fd, "PLACE_SHIP_RES", 1, "Success to place ship");
+                            }
+                            else if (user_id->valueint == match_session->player_2.user_id)
+                            {
+                                pthread_mutex_lock(&match_lock);
+                                match_session->player_1_ready = 1,
+                                match_session->board_p1 = board;
+                                pthread_mutex_unlock(&match_lock);
+                                sendResult(client_fd, "PLACE_SHIP_RES", 1, "Success to place ship");
+                            }
+                            else
+                            {
+                                sendResult(client_fd, "PLACE_SHIP_RES", 0, "You're not in this match");
+                                continue;
+                            }
+
+                            if (match_session->player_1_ready && match_session->player_2_ready)
+                            {
+                                sendNotifyMatchStart(match_session->player_1.socket_fd, match_session->match_id, match_session->current_turn);
+                                sendNotifyMatchStart(match_session->player_2.socket_fd, match_session->match_id, match_session->current_turn);
+                            }
+                        }
+
                         // todo: MOVE
                         else if (strcmp(endpoint, "MOVE_REQ") == 0)
                         {
@@ -775,7 +814,9 @@ int main(int argc, char const *argv[])
                             }
 
                             // Perform the attack
+                            pthread_mutex_lock(&match_lock);
                             AttackResult result = attack_cell(opponent_board, row, col);
+                            pthread_mutex_unlock(&match_lock);
                             const char *result_str = NULL;
 
                             switch (result)
@@ -839,7 +880,9 @@ int main(int argc, char const *argv[])
                                 sendMoveResult(opponent->socket_fd, match_id, attacker->username, row, col, result_str, next_turn_user_id);
 
                                 // Update next turn
+                                pthread_mutex_lock(&match_lock);
                                 match->current_turn = next_turn_user_id;
+                                pthread_mutex_unlock(&match_lock);
                             }
                         }
                         // todo: RESIGN
@@ -953,7 +996,7 @@ int main(int argc, char const *argv[])
                             else
                             {
 
-                                //  Lấy thông tin player
+                                //*  Get host player information
                                 Player *host_player = getPlayerByUserId(room->host_user_id);
 
                                 if (host_player != NULL)
@@ -961,17 +1004,17 @@ int main(int argc, char const *argv[])
                                     BoardState host_board, guest_board;
                                     init_board_state(&host_board);
                                     init_board_state(&guest_board);
-                                    int new_match_id = createMatchSession(*host_player, *player, host_board, guest_board);
+                                    int new_match_id = createMatchSession(*host_player, *player);
 
                                     pthread_mutex_lock(&connections_lock);
-                                    // 4. Cập nhật trạng thái client
+                                    // Update player status
                                     host_player->in_game = 1;
                                     player->in_game = 1;
                                     pthread_mutex_unlock(&connections_lock);
 
-                                    // 5. Gửi MATCH_FOUND cho cả hai
-                                    sendNotifyMatchFound(host_player->socket_fd, new_match_id, host_player->username, player->username, 1); // Host đi trước
-                                    sendNotifyMatchFound(client_fd, new_match_id, host_player->username, player->username, 0);              // Guest đi sau
+                                    // Send match found
+                                    sendNotifyMatchFound(host_player->socket_fd, new_match_id, host_player->username, player->username);
+                                    sendNotifyMatchFound(client_fd, new_match_id, host_player->username, player->username);
 
                                     printf("[CUSTOM GAME] Match %d started: %s (Host) vs %s (Guest)\n",
                                            new_match_id, host_player->username, player->username);
@@ -987,10 +1030,11 @@ int main(int argc, char const *argv[])
                                 }
                                 else
                                 {
+                                    //! Should not reach here
                                     sendResult(room->host_socket_fd, "JOIN_ROOM_RES", 0, "Something went wrong.");
                                 }
 
-                                // * Không cần gửi JOIN_ROOM_RES thành công, vì MATCH_FOUND sẽ thay thế.
+                                // ! Không cần gửi JOIN_ROOM_RES thành công, vì MATCH_FOUND sẽ thay thế.
                             }
                         }
                         // todo: CLOSE LOBBY
@@ -998,7 +1042,7 @@ int main(int argc, char const *argv[])
                         {
                             printf("[LOBBY] Received ROOM_CLOSE_REQ from %s.\n", player->username);
 
-                            cJSON *code_obj = cJSON_GetObjectItemCaseSensitive(payload, "code");
+                            cJSON *code_obj = cJSON_GetObjectItem(payload, "code");
 
                             if (cJSON_IsString(code_obj) && code_obj->valuestring != NULL)
                             {

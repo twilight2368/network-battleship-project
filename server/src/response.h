@@ -8,12 +8,11 @@ int sendResult(int sock_fd, const char *type, const int result, const char *mess
 
 int sendLoginResult(int sock_fd, int user_id, const char *username, int elo);
 
-int sendNotifyMatchFound(int sock_fd, int match_id, char *player_1_username, char *player_2_username, int first_turn);
+int sendNotifyMatchFound(int sock_fd, int match_id, char *player_1_username, char *player_2_username);
+int sendNotifyMatchStart(int sock_fd, int match_id, int first_turn);
 int sendMoveResult(int socket_fd, int match_id, char *attacker_username, int row, int col, const char *result, int next_turn_user_id);
 int sendMatchResult(int socket_fd, int match_id, const char *result, int elo_change);
 
 int sendCreateRoomResult(int sock_fd, const int result, const char *code);
-int sendJoinRoomResult(int sock_fd, const int result);
-int sendLobbyCloseResult(int socket_fd, int result, const char *message);
 
 #endif
