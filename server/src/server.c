@@ -734,8 +734,8 @@ int main(int argc, char const *argv[])
                             else if (user_id->valueint == match_session->player_2.user_id)
                             {
                                 pthread_mutex_lock(&match_lock);
-                                match_session->player_1_ready = 1,
-                                match_session->board_p1 = board;
+                                match_session->player_2_ready = 1,
+                                match_session->board_p2 = board;
                                 pthread_mutex_unlock(&match_lock);
                                 sendResult(client_fd, "PLACE_SHIP_RES", 1, "Success to place ship");
                             }
