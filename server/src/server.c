@@ -959,7 +959,7 @@ int main(int argc, char const *argv[])
                             removeMatchSession(match_id);
                         }
                         // todo: CHAT INGAME
-                        else if (strcmp(endpoint, "CHAT_GAME"))
+                        else if (strcmp(endpoint, "CHAT_GAME") == 0)
                         {
                             cJSON *match_id = cJSON_GetObjectItem(payload, "match_id");
 
