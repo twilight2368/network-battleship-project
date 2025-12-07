@@ -153,7 +153,13 @@ class GameController:
             
             self.show_message(f"Match found! Opponent: {self.state['enemy_name']}")
             self.start_ship_placement()
-            
+        
+        elif t == "PLACE_SHIP_RES":
+            if msg.get("result", 0) == 1:
+                self.show_message("Ships placed! Ready for match ...")
+            else:
+                self.show_message("Ships placed failed!")
+           
         #update: match start
         elif t == "MATCH_START":
             self.placing_ships = False
@@ -162,7 +168,7 @@ class GameController:
             first_user_id = msg.get("first_turn", 0)
             self.state["my_turn"] = (first_user_id == self.state["user_id"])
             self.show_message("Match started!")
-            
+        
         elif t == "MOVE_RESULT":
             attacker = msg["attacker"]
             r, c = msg["row"], msg["col"]
@@ -185,6 +191,7 @@ class GameController:
             self.state["my_turn"] = False
             self.state["match_id"] = 0
             self.state["enemy_name"] = ""
+            self.state["in_custom_lobby"] = False
         
         elif t == "LOGIN_RES":
             if msg.get("result", 0) == 0:
@@ -269,7 +276,7 @@ class GameController:
             #Update Json
             send_json(self.sock, {"type": "SHIPS_PLACED_REQ","match_id": match_id, 
                                   "user_id": user_id, "ships": self.placed_ships})
-            self.show_message("Ships placed! Entering queue...")
+            
     
     ### For Custom Lobby ###
     

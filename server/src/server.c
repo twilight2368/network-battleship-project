@@ -168,7 +168,7 @@ int removeCustomLobby(const char *code, int user_id)
             if (lobby->host_user_id == user_id)
             {
 
-                memset(lobby, 0, sizeof(lobby));
+                memset(lobby, 0, sizeof(CustomRoom));
                 success = 1;
                 break; // Thoát khỏi vòng lặp
             }
@@ -523,13 +523,17 @@ int main(int argc, char const *argv[])
                     if (player->user_id != 0 && player->is_login)
                     {
                         CustomRoom *room_to_remove = findRoomByHostId(player->user_id);
-                        if (room_to_remove != NULL && removeCustomLobby(room_to_remove->code, player->user_id))
+
+                        if (room_to_remove != NULL)
                         {
-                            printf("Remove room success... \n");
-                        }
-                        else
-                        {
-                            printf("Remove room failed... \n");
+                            if (removeCustomLobby(room_to_remove->code, player->user_id))
+                            {
+                                printf("Remove room success... \n");
+                            }
+                            else
+                            {
+                                printf("Remove room failed... \n");
+                            }
                         }
                     }
 
@@ -729,7 +733,10 @@ int main(int argc, char const *argv[])
                                 match_session->player_1_ready = 1,
                                 match_session->board_p1 = board;
                                 pthread_mutex_unlock(&match_lock);
-                                sendResult(client_fd, "PLACE_SHIP_RES", 1, "Success to place ship");
+                                if (match_session->player_2_ready == 0)
+                                {
+                                    sendResult(client_fd, "PLACE_SHIP_RES", 1, "Success to place ship");
+                                }
                             }
                             else if (user_id->valueint == match_session->player_2.user_id)
                             {
@@ -737,7 +744,10 @@ int main(int argc, char const *argv[])
                                 match_session->player_2_ready = 1,
                                 match_session->board_p2 = board;
                                 pthread_mutex_unlock(&match_lock);
-                                sendResult(client_fd, "PLACE_SHIP_RES", 1, "Success to place ship");
+                                if (match_session->player_1_ready == 0)
+                                {
+                                    sendResult(client_fd, "PLACE_SHIP_RES", 1, "Success to place ship");
+                                }
                             }
                             else
                             {
