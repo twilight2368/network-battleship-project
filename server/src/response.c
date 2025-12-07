@@ -52,17 +52,26 @@ int sendLoginResult(int sock_fd, int user_id, const char *username, int elo)
     return 1;
 }
 
-int sendNotifyMatchFound(int sock_fd, int match_id, char *player_1_username, char *player_2_username, int first_turn)
+int sendNotifyMatchFound(int sock_fd, int match_id, char *player_1_username, char *player_2_username)
 {
     cJSON *msg = cJSON_CreateObject();
     cJSON_AddStringToObject(msg, "type", "MATCH_FOUND");
     cJSON_AddNumberToObject(msg, "match_id", match_id);
     cJSON_AddStringToObject(msg, "player1", player_1_username);
     cJSON_AddStringToObject(msg, "player2", player_2_username);
-    cJSON_AddNumberToObject(msg, "first_turn", first_turn);
-
     sendResponse(sock_fd, msg);
 
+    cJSON_Delete(msg);
+    return 1;
+}
+
+int sendNotifyMatchStart(int sock_fd, int match_id, int first_turn)
+{
+    cJSON *msg = cJSON_CreateObject();
+    cJSON_AddStringToObject(msg, "type", "MATCH_START");
+    cJSON_AddNumberToObject(msg, "match_id", match_id);
+    cJSON_AddNumberToObject(msg, "first_turn", first_turn);
+    sendResponse(sock_fd, msg);
     cJSON_Delete(msg);
     return 1;
 }
@@ -92,6 +101,34 @@ int sendMatchResult(int socket_fd, int match_id, const char *result, int new_elo
     cJSON_AddNumberToObject(msg, "new_elo", new_elo); // can be negative
 
     sendResponse(socket_fd, msg);
+    cJSON_Delete(msg);
+    return 1;
+}
+
+int sendChatGame(int socket_fd, int match_id, const char *message)
+{
+    cJSON *msg = cJSON_CreateObject();
+    cJSON_AddStringToObject(msg, "type", "CHAT_GAME");
+    cJSON_AddNumberToObject(msg, "match_id", match_id);
+    cJSON_AddStringToObject(msg, "message", message);
+    sendResponse(socket_fd, msg);
+    cJSON_Delete(msg);
+    return 1;
+}
+
+// update: for lobby room
+int sendCreateRoomResult(int sock_fd, const int result, const char *code)
+{
+    cJSON *msg = cJSON_CreateObject();
+    cJSON_AddStringToObject(msg, "type", "CREATE_ROOM_RES");
+    cJSON_AddNumberToObject(msg, "result", result);
+
+    if (result == 1)
+    {
+        cJSON_AddStringToObject(msg, "code", code);
+    }
+
+    sendResponse(sock_fd, msg);
     cJSON_Delete(msg);
     return 1;
 }

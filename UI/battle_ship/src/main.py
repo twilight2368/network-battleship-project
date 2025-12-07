@@ -10,7 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Import modules
 from src.controllers.game_controller import GameController
 from src.screens.login_screen import draw_login_screen, handle_login_events
-from src.screens.lobby_screen import draw_lobby_screen
+from src.screens.lobby_screen import draw_lobby_screen, handle_join_lobby_events
 from src.screens.game_screen import draw_ship_placement_screen, draw_game_screen, handle_game_events
 from src.components.gui_elements import WHITE, BLACK, RED
 from src.network.networking import DEFAULT_HOST, DEFAULT_PORT
@@ -39,26 +39,33 @@ def run_game(controller):
     controller.start_receiver_thread()
     
     while controller.running:
+        clicked_events_occur = False
         # 1. Handle Events
         for event in pygame.event.get():
             if event.type == QUIT:
                 controller.running = False
             
+            if event.type == MOUSEBUTTONDOWN and event.button == 1:
+                clicked_events_occur = True
+                
+            # Xử lý các sự kiện không liên quan đến click (input text, key press, v.v.)
             if not controller.state["is_login"]:
                 handle_login_events(event, controller)
             elif controller.state["in_game"] or controller.placing_ships:
                 handle_game_events(event, controller)
-
+            # LOGIC MỚI: Xử lý input text cho Lobby (nhập mã phòng)
+            elif controller.state["is_login"]:
+                handle_join_lobby_events(event, controller)
         # 2. Draw Screen
         if not controller.state["is_login"]:
-            draw_login_screen(controller)
+            draw_login_screen(controller, clicked_events_occur)
         elif controller.placing_ships:
-            draw_ship_placement_screen(controller)
+            draw_ship_placement_screen(controller, clicked_events_occur)
         elif controller.state["in_game"]:
-            draw_game_screen(controller)
+            draw_game_screen(controller, clicked_events_occur)
         else:
-            draw_lobby_screen(controller)
-        
+            draw_lobby_screen(controller, clicked_events_occur)
+            
         # 3. Draw Global Message
         if controller.message and pygame.time.get_ticks() < controller.message_timer:
             msg_surf = controller.font_small.render(controller.message, True, RED)

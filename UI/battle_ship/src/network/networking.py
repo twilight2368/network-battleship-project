@@ -13,7 +13,6 @@ BUFFER_SIZE = 1024
 # JSON SEND/RECV (Keywords are unchanged)
 # ==========================================
 def send_json(sock, obj):
-    """Gửi đối tượng Python dưới dạng chuỗi JSON qua socket."""
     try:
         print(f"Sending: {obj}")  # Debug
         sock.sendall(json.dumps(obj).encode("utf-8"))
@@ -21,7 +20,6 @@ def send_json(sock, obj):
         pass
 
 def recv_json(sock):
-    """Nhận và parse một đối tượng JSON hoàn chỉnh từ socket."""
     data = ""
     brace_count = 0
     inside_json = False

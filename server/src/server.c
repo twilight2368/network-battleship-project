@@ -24,6 +24,7 @@ pthread_mutex_t match_lock = PTHREAD_MUTEX_INITIALIZER;
 #define BUFFER_SIZE 1024
 #define MAX_CLIENTS 100
 #define MAX_MATCHES_NUM 50
+#define MAX_CUSTOM_LOBBIES 50 // update: custom lobby
 // todo: =============== TYPES DEFINITIONS =================
 typedef struct
 {
@@ -43,7 +44,7 @@ typedef struct
 typedef struct
 {
     Player player;
-    BoardState board;
+    // BoardState board;
 } WaitingPlayer;
 
 typedef struct
@@ -51,10 +52,20 @@ typedef struct
     int match_id;
     Player player_1;
     Player player_2;
+    int player_1_ready;
+    int player_2_ready;
     BoardState board_p1;
     BoardState board_p2;
     int current_turn;
 } MatchSession;
+
+// update: custom lobby
+typedef struct
+{
+    char code[6];
+    int host_user_id;
+    int host_socket_fd; // socket fd of host
+} CustomRoom;
 
 // todo: ================ DATABASE =============================
 Database db;
@@ -63,6 +74,7 @@ Database db;
 Player connectedPlayers[MAX_CLIENTS];
 WaitingPlayer queuePlayer[MAX_CLIENTS];
 MatchSession matchSessionList[MAX_MATCHES_NUM];
+CustomRoom customRoomList[MAX_CUSTOM_LOBBIES]; // update: custom lobby
 
 // todo: ================= HELPER FUNCITONS =====================
 
@@ -88,8 +100,90 @@ Player *getPlayerByUserId(int user_id)
     return NULL;
 }
 
+// todo: ================= LOBBIES FUNCITONS =====================
+
+// find room by code
+CustomRoom *findRoomByCode(const char *code)
+{
+    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++)
+    {
+        if (customRoomList[i].host_user_id != 0 && strcmp(customRoomList[i].code, code) == 0)
+        {
+            return &customRoomList[i];
+        }
+    }
+    return NULL;
+}
+
+CustomRoom *findRoomByHostId(int user_id)
+{
+    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++)
+    {
+        if (customRoomList[i].host_user_id == user_id)
+        {
+            return &customRoomList[i];
+        }
+    }
+    return NULL;
+}
+
+// find empty room slot
+CustomRoom *findEmptyRoom()
+{
+    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++)
+    {
+        if (customRoomList[i].host_user_id == 0)
+        {
+            return &customRoomList[i];
+        }
+    }
+    return NULL;
+}
+
+// generate lobby
+void initRooms()
+{
+    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++)
+    {
+        memset(&customRoomList[i], 0, sizeof(CustomRoom));
+        customRoomList[i].code[0] = '\0';
+    }
+}
+
+// delete lobby
+int removeCustomLobby(const char *code, int user_id)
+{
+
+    int success = 0;
+
+    for (int i = 0; i < MAX_CUSTOM_LOBBIES; i++)
+    {
+        CustomRoom *lobby = &customRoomList[i];
+
+        // 2. Tìm Lobby đang hoạt động và có mã trùng khớp
+        if (lobby != NULL && strcmp(lobby->code, code) == 0)
+        {
+
+            // 3. Xác minh người yêu cầu có phải là Host không
+            if (lobby->host_user_id == user_id)
+            {
+
+                memset(lobby, 0, sizeof(lobby));
+                success = 1;
+                break; // Thoát khỏi vòng lặp
+            }
+            else
+            {
+                success = 0;
+                break;
+            }
+        }
+    }
+
+    return success;
+}
 // todo: ================= QUEUE FUNCTION ======================
-int enqueuePlayer(Player p, BoardState board)
+int enqueuePlayer(Player p)
 {
     pthread_mutex_lock(&queue_lock);
     for (int i = 0; i < MAX_CLIENTS; i++)
@@ -97,7 +191,6 @@ int enqueuePlayer(Player p, BoardState board)
         if (queuePlayer[i].player.user_id == 0)
         {
             queuePlayer[i].player = p;
-            queuePlayer[i].board = board;
             pthread_mutex_unlock(&queue_lock);
             return 1;
         }
@@ -123,7 +216,7 @@ int dequeuePlayer(int user_id)
 }
 
 // todo: ================= MATCHMAKING FUNCTION =================
-int createMatchSession(Player p1, Player p2, BoardState b1, BoardState b2)
+int createMatchSession(Player p1, Player p2)
 {
     pthread_mutex_lock(&match_lock);
     for (int i = 0; i < MAX_MATCHES_NUM; i++)
@@ -135,8 +228,6 @@ int createMatchSession(Player p1, Player p2, BoardState b1, BoardState b2)
             matchSessionList[i].match_id = new_match_id;
             matchSessionList[i].player_1 = p1;
             matchSessionList[i].player_2 = p2;
-            matchSessionList[i].board_p1 = b1;
-            matchSessionList[i].board_p2 = b2;
             matchSessionList[i].current_turn = (rand() % 2 == 0) ? p1.user_id : p2.user_id; //? RANDOM THE FIRST TURN
             printf("[NEW MATCH] Match %d: %s (%d) vs %s (%d). \n", new_match_id, p1.username, p1.elo, p2.username, p2.elo);
             pthread_mutex_unlock(&match_lock);
@@ -233,10 +324,8 @@ void *matchmaking_thread(void *arg)
 
                 Player p1 = queuePlayer[i].player;
                 Player p2 = queuePlayer[j].player;
-                BoardState b1 = queuePlayer[i].board;
-                BoardState b2 = queuePlayer[j].board;
 
-                int match_id = createMatchSession(p1, p2, b1, b2);
+                int match_id = createMatchSession(p1, p2);
                 if (match_id <= 0)
                     continue;
 
@@ -257,12 +346,12 @@ void *matchmaking_thread(void *arg)
                 pthread_mutex_unlock(&connections_lock);
 
                 // todo: Send notify to each players
-                if (sendNotifyMatchFound(p1.socket_fd, new_match->match_id, p1.username, p2.username, new_match->current_turn))
+                if (sendNotifyMatchFound(p1.socket_fd, new_match->match_id, p1.username, p2.username))
                 {
                     printf("[INFO] Send match invitation to %s socket %d. \n", p1.username, p1.socket_fd);
                 }
 
-                if (sendNotifyMatchFound(p2.socket_fd, new_match->match_id, p1.username, p2.username, new_match->current_turn))
+                if (sendNotifyMatchFound(p2.socket_fd, new_match->match_id, p1.username, p2.username))
                 {
                     printf("[INFO] Send match invitation to %s socket %d. \n", p2.username, p2.socket_fd);
                 }
@@ -431,6 +520,19 @@ int main(int argc, char const *argv[])
                         }
                     }
 
+                    if (player->user_id != 0 && player->is_login)
+                    {
+                        CustomRoom *room_to_remove = findRoomByHostId(player->user_id);
+                        if (room_to_remove != NULL && removeCustomLobby(room_to_remove->code, player->user_id))
+                        {
+                            printf("Remove room success... \n");
+                        }
+                        else
+                        {
+                            printf("Remove room failed... \n");
+                        }
+                    }
+
                     if (player)
                         printf("Disconnection from %s:%d\n", inet_ntoa(player->addr.sin_addr), ntohs(player->addr.sin_port));
                     pthread_mutex_lock(&connections_lock);
@@ -554,30 +656,8 @@ int main(int argc, char const *argv[])
                                 continue;
                             }
 
-                            cJSON *ships_json = cJSON_GetObjectItem(payload, "ships");
-                            if (!ships_json || !cJSON_IsObject(ships_json))
-                            {
-                                sendResult(client_fd, "QUEUE_ENTER_RES", 0, "No ships was found");
-                                continue;
-                            }
-
-                            // todo: Init board for player
-                            BoardState board;
-                            init_board_state(&board);
-
-                            // todo: Place ship
-                            if (!place_ship_from_json(&board, ships_json, "carrier", CARRIER) ||
-                                !place_ship_from_json(&board, ships_json, "battleship", BATTLESHIP) ||
-                                !place_ship_from_json(&board, ships_json, "cruiser", CRUISER) ||
-                                !place_ship_from_json(&board, ships_json, "submarine", SUBMARINE) ||
-                                !place_ship_from_json(&board, ships_json, "destroyer", DESTROYER))
-                            {
-                                sendResult(client_fd, "QUEUE_ENTER_RES", 0, "Failed to place ship");
-                                continue;
-                            }
-
                             // todo:  Add player to queue
-                            if (enqueuePlayer(*player, board))
+                            if (enqueuePlayer(*player))
                             {
                                 pthread_mutex_lock(&connections_lock);
                                 player->in_queue = 1;
@@ -606,6 +686,69 @@ int main(int argc, char const *argv[])
                             else
                             {
                                 sendResult(client_fd, "QUEUE_EXIT_RES", 0, "Exit queue failed");
+                            }
+                        }
+                        // todo: PLACE SHIP
+                        else if (strcmp(endpoint, "SHIPS_PLACED_REQ") == 0)
+                        {
+                            cJSON *ships_json = cJSON_GetObjectItem(payload, "ships");
+                            printf("ALl the ship: %s \n", cJSON_Print(ships_json));
+                            if (!ships_json || !cJSON_IsObject(ships_json))
+                            {
+                                sendResult(client_fd, "QUEUE_ENTER_RES", 0, "No ships was found");
+                                continue;
+                            }
+
+                            // todo: Init board for player
+                            BoardState board;
+                            init_board_state(&board);
+
+                            // todo: Place ship
+                            if (!place_ship_from_json(&board, ships_json, "carrier", CARRIER) ||
+                                !place_ship_from_json(&board, ships_json, "battleship", BATTLESHIP) ||
+                                !place_ship_from_json(&board, ships_json, "cruiser", CRUISER) ||
+                                !place_ship_from_json(&board, ships_json, "submarine", SUBMARINE) ||
+                                !place_ship_from_json(&board, ships_json, "destroyer", DESTROYER))
+                            {
+                                sendResult(client_fd, "PLACE_SHIP_RES", 0, "Failed to place ship");
+                                continue;
+                            }
+
+                            cJSON *match_id = cJSON_GetObjectItem(payload, "match_id");
+                            cJSON *user_id = cJSON_GetObjectItem(payload, "user_id");
+                            MatchSession *match_session = getMatchById(match_id->valueint);
+                            if (!match_id || !user_id || match_session == NULL)
+                            {
+                                sendResult(client_fd, "PLACE_SHIP_RES", 0, "No user id or match was found");
+                                continue;
+                            }
+
+                            if (user_id->valueint == match_session->player_1.user_id)
+                            {
+                                pthread_mutex_lock(&match_lock);
+                                match_session->player_1_ready = 1,
+                                match_session->board_p1 = board;
+                                pthread_mutex_unlock(&match_lock);
+                                sendResult(client_fd, "PLACE_SHIP_RES", 1, "Success to place ship");
+                            }
+                            else if (user_id->valueint == match_session->player_2.user_id)
+                            {
+                                pthread_mutex_lock(&match_lock);
+                                match_session->player_2_ready = 1,
+                                match_session->board_p2 = board;
+                                pthread_mutex_unlock(&match_lock);
+                                sendResult(client_fd, "PLACE_SHIP_RES", 1, "Success to place ship");
+                            }
+                            else
+                            {
+                                sendResult(client_fd, "PLACE_SHIP_RES", 0, "You're not in this match");
+                                continue;
+                            }
+
+                            if (match_session->player_1_ready && match_session->player_2_ready)
+                            {
+                                sendNotifyMatchStart(match_session->player_1.socket_fd, match_session->match_id, match_session->current_turn);
+                                sendNotifyMatchStart(match_session->player_2.socket_fd, match_session->match_id, match_session->current_turn);
                             }
                         }
                         // todo: MOVE
@@ -670,7 +813,9 @@ int main(int argc, char const *argv[])
                             }
 
                             // Perform the attack
+                            pthread_mutex_lock(&match_lock);
                             AttackResult result = attack_cell(opponent_board, row, col);
+                            pthread_mutex_unlock(&match_lock);
                             const char *result_str = NULL;
 
                             switch (result)
@@ -734,7 +879,9 @@ int main(int argc, char const *argv[])
                                 sendMoveResult(opponent->socket_fd, match_id, attacker->username, row, col, result_str, next_turn_user_id);
 
                                 // Update next turn
+                                pthread_mutex_lock(&match_lock);
                                 match->current_turn = next_turn_user_id;
+                                pthread_mutex_unlock(&match_lock);
                             }
                         }
                         // todo: RESIGN
@@ -810,6 +957,140 @@ int main(int argc, char const *argv[])
 
                             // Remove match from session
                             removeMatchSession(match_id);
+                        }
+                        // todo: CHAT INGAME
+                        else if (strcmp(endpoint, "CHAT_GAME"))
+                        {
+                            cJSON *match_id = cJSON_GetObjectItem(payload, "match_id");
+
+                            cJSON *message = cJSON_GetObjectItem(payload, "message");
+                            if (!match_id || !message)
+                            {
+                                sendError(client_fd, "Required fields is not fulfilling");
+                                continue;
+                            }
+
+                            MatchSession *match_session = getMatchById(match_id->valueint);
+
+                            if (player->user_id == match_session->player_1.user_id)
+                            {
+                                sendChatGame(match_session->player_2.socket_fd, match_id->valueint, message->valuestring);
+                            }
+                            else if (player->user_id == match_session->player_2.user_id)
+                            {
+                                sendChatGame(match_session->player_1.socket_fd, match_id->valueint, message->valuestring);
+                            }
+                            else
+                            {
+                                sendError(client_fd, "You're not in this match");
+                            }
+                        }
+                        // todo: CREATE CUSTOM ROOM
+                        else if (strcmp(endpoint, "CREATE_ROOM_REQ") == 0)
+                        {
+
+                            CustomRoom *room = findEmptyRoom();
+
+                            if (room == NULL)
+                            {
+                                sendCreateRoomResult(client_fd, 0, "No available rooms. Try again later.");
+                            }
+                            else
+                            {
+                                char new_code[6];
+                                generateRoomCode(new_code);
+
+                                strcpy(room->code, new_code);
+                                room->host_user_id = player->user_id;
+                                room->host_socket_fd = client_fd;
+                                printf("Created room success: %s \n", room->code);
+                                sendCreateRoomResult(client_fd, 1, new_code);
+                            }
+                        }
+                        // todo: JOIN CUSTOM LOBBY
+                        else if (strcmp(endpoint, "JOIN_ROOM_REQ") == 0)
+                        {
+                            char *code = cJSON_GetObjectItem(payload, "code")->valuestring;
+
+                            CustomRoom *room = findRoomByCode(code);
+
+                            if (room == NULL || room->host_user_id == player->user_id)
+                            {
+                                // not found room response
+                                sendResult(client_fd, "JOIN_ROOM_RES", 0, "Room not found or already full.");
+                            }
+                            else
+                            {
+
+                                //*  Get host player information
+                                Player *host_player = getPlayerByUserId(room->host_user_id);
+
+                                if (host_player != NULL)
+                                {
+                                    BoardState host_board, guest_board;
+                                    init_board_state(&host_board);
+                                    init_board_state(&guest_board);
+                                    int new_match_id = createMatchSession(*host_player, *player);
+
+                                    pthread_mutex_lock(&connections_lock);
+                                    // Update player status
+                                    host_player->in_game = 1;
+                                    player->in_game = 1;
+                                    pthread_mutex_unlock(&connections_lock);
+
+                                    // Send match found
+                                    sendNotifyMatchFound(host_player->socket_fd, new_match_id, host_player->username, player->username);
+                                    sendNotifyMatchFound(client_fd, new_match_id, host_player->username, player->username);
+
+                                    printf("[CUSTOM GAME] Match %d started: %s (Host) vs %s (Guest)\n",
+                                           new_match_id, host_player->username, player->username);
+
+                                    if (removeCustomLobby(room->code, room->host_user_id))
+                                    {
+                                        printf("Remove room success... \n");
+                                    }
+                                    else
+                                    {
+                                        printf("Remove room failed... \n");
+                                    }
+                                }
+                                else
+                                {
+                                    //! Should not reach here
+                                    sendResult(room->host_socket_fd, "JOIN_ROOM_RES", 0, "Something went wrong.");
+                                }
+
+                                // ! Không cần gửi JOIN_ROOM_RES thành công, vì MATCH_FOUND sẽ thay thế.
+                            }
+                        }
+                        // todo: CLOSE LOBBY
+                        else if (strcmp(endpoint, "ROOM_CLOSE_REQ") == 0)
+                        {
+                            printf("[LOBBY] Received ROOM_CLOSE_REQ from %s.\n", player->username);
+
+                            cJSON *code_obj = cJSON_GetObjectItem(payload, "code");
+
+                            if (cJSON_IsString(code_obj) && code_obj->valuestring != NULL)
+                            {
+                                char *lobby_code = code_obj->valuestring;
+
+                                if (removeCustomLobby(lobby_code, player->user_id))
+                                {
+                                    printf("[LOBBY] Room %s successfully closed by %s.\n", lobby_code, player->username);
+                                    // Gửi phản hồi thành công
+                                    sendResult(client_fd, "ROOM_CLOSE_RES", 1, "Lobby closed successfully.");
+                                }
+                                else
+                                {
+                                    printf("[LOBBY] Failed to close room %s. User %s is not the host or room doesn't exist.\n", lobby_code, player->username);
+                                    // Gửi phản hồi thất bại
+                                    sendResult(client_fd, "ROOM_CLOSE_RES", 0, "Failed to close lobby. You may not be the host or the room does not exist.");
+                                }
+                            }
+                            else
+                            {
+                                sendError(client_fd, "LOBBY_CLOSE_REQ requires 'code'.");
+                            }
                         }
                         else // todo: UNKNOWN
                         {

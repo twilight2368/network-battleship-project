@@ -30,3 +30,15 @@ int can_match(int elo_1, int elo_2)
     int diff = abs(elo_1 - elo_2);
     return diff <= 200;
 }
+
+// --- generate random room code ---
+void generateRoomCode(char *code)
+{
+    const char charset[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const size_t max_index = (sizeof(charset) - 1);
+    for (int i = 0; i < 5; i++)
+    {
+        code[i] = charset[rand() % max_index];
+    }
+    code[5] = '\0';
+}

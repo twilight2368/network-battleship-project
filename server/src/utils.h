@@ -26,4 +26,9 @@ int calculate_elo(int elo_a, int elo_b, float score_a);
  */
 int can_match(int elo_1, int elo_2);
 
+/**
+ * @param code     Return room code
+ */
+void generateRoomCode(char *code);
+
 #endif

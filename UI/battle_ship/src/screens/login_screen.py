@@ -7,7 +7,7 @@ from pygame.locals import *
 from src.components.gui_elements import WHITE, BLACK, draw_button, draw_input_box
 from src.network.networking import send_json
 
-def draw_login_screen(controller):
+def draw_login_screen(controller, clicked_events_occur):
     """Vẽ màn hình đăng nhập/đăng ký."""
     screen = controller.screen
     
@@ -19,17 +19,17 @@ def draw_login_screen(controller):
     screen.blit(title, title_rect)
     
     # Buttons
-    if draw_button(screen, controller.font_small, 300, 250, 300, 50, "REGISTER"):
+    if draw_button(screen, controller.font_small, 300, 250, 300, 50, "REGISTER", event_click=clicked_events_occur):
         controller.input_mode = "register_username"
         controller.input_active = True
         controller.input_text = ""
     
-    if draw_button(screen, controller.font_small, 300, 320, 300, 50, "LOGIN"):
+    if draw_button(screen, controller.font_small, 300, 320, 300, 50, "LOGIN", event_click=clicked_events_occur):
         controller.input_mode = "login_username"
         controller.input_active = True
         controller.input_text = ""
     
-    if draw_button(screen, controller.font_small, 300, 390, 300, 50, "EXIT"):
+    if draw_button(screen, controller.font_small, 300, 390, 300, 50, "EXIT", event_click=clicked_events_occur):
         controller.running = False
     
     # Handle input boxes
