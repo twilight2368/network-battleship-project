@@ -60,7 +60,7 @@ def draw_ship_placement_screen(controller, clicked_events_occur):
     screen = controller.screen
     screen.fill(WHITE)
     
-    # Title và Instructions (Giữ nguyên)
+    # Title và Instructions 
     if controller.current_ship_index < len(controller.ships_to_place):
         ship_name = controller.ships_to_place[controller.current_ship_index]
         title = controller.font_medium.render(
@@ -76,8 +76,16 @@ def draw_ship_placement_screen(controller, clicked_events_occur):
     board_x, board_y = 300, 150
     draw_board(controller, board_x, board_y, controller.state["my_board"], show_ships=True)
     
-    # Draw preview
-    if controller.current_ship_index < len(controller.ships_to_place):
+    # Draw preview - UPDATE match start
+    if controller.current_ship_index >= len(controller.ships_to_place):
+        title = controller.font_large.render("Ships placed!", True, GREEN)
+        title_rect = title.get_rect(center=(450, 70))
+        screen.blit(title, title_rect)
+        
+        wait_text = controller.font_medium.render("Waiting for opponent to place ships...", True, BLACK)
+        wait_rect = wait_text.get_rect(center=(450, 120))
+        screen.blit(wait_text, wait_rect)
+    else:
         mouse_pos = pygame.mouse.get_pos()
         if board_x <= mouse_pos[0] < board_x + 300 and board_y <= mouse_pos[1] < board_y + 300:
             col = (mouse_pos[0] - board_x) // CELL_SIZE

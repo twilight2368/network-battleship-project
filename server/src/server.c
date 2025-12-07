@@ -689,9 +689,10 @@ int main(int argc, char const *argv[])
                             }
                         }
                         // todo: PLACE SHIP
-                        else if (strcmp(endpoint, "PLACE_SHIP") == 0)
+                        else if (strcmp(endpoint, "SHIPS_PLACED_REQ") == 0)
                         {
                             cJSON *ships_json = cJSON_GetObjectItem(payload, "ships");
+                            printf("ALl the ship: %s \n", cJSON_Print(ships_json));
                             if (!ships_json || !cJSON_IsObject(ships_json))
                             {
                                 sendResult(client_fd, "QUEUE_ENTER_RES", 0, "No ships was found");

@@ -132,7 +132,7 @@ class GameController:
             # Đảm bảo logic custom lobby được xử lý đúng (MATCH_FOUND tự động bắt đầu game)
             
             # Cả 2 client (Host & Guest) đều nhận MATCH_FOUND
-            self.state["in_game"] = True
+            #self.state["in_game"] = True - BO INGAME STATE
             self.state["in_queue"] = False
             
             # Nếu đang ở chế độ Custom Lobby, xóa input mode
@@ -147,13 +147,21 @@ class GameController:
             is_player1 = self.state["username"] == msg["player1"]
             self.state["enemy_name"] = msg["player2"] if is_player1 else msg["player1"]
             
-            # Kiểm tra xem mình có phải là người đi trước không
-            self.state["my_turn"] = (msg.get("first_turn", 0) == 1 and is_player1) or \
-                                    (msg.get("first_turn", 0) == 0 and not is_player1)
+            # Kiểm tra xem mình có phải là người đi trước không - Update Bo ingame state
+            # self.state["my_turn"] = (msg.get("first_turn", 0) == 1 and is_player1) or \
+            #                         (msg.get("first_turn", 0) == 0 and not is_player1)
             
             self.show_message(f"Match found! Opponent: {self.state['enemy_name']}")
-            #self.start_ship_placement()
+            self.start_ship_placement()
             
+        #update: match start
+        elif t == "MATCH_START":
+            self.placing_ships = False
+            self.state["in_game"] = True
+            
+            first_user_id = msg.get("first_turn", 0)
+            self.state["my_turn"] = (first_user_id == self.state["user_id"])
+            self.show_message("Match started!")
             
         elif t == "MOVE_RESULT":
             attacker = msg["attacker"]
@@ -252,12 +260,15 @@ class GameController:
         self.current_ship_index += 1
         
         if self.current_ship_index >= len(self.ships_to_place):
-            self.placing_ships = False
+            #self.placing_ships = False
             
-            #FIX LOGOUT_BUG
-            self.state["in_queue"] = True
-            
-            send_json(self.sock, {"type": "QUEUE_ENTER_REQ", "ships": self.placed_ships})
+            #FIX LOGOUT_BUG - update: bo
+            #$self.state["in_queue"] = True
+            user_id = self.state["user_id"]
+            match_id = self.state["match_id"]
+            #Update Json
+            send_json(self.sock, {"type": "SHIPS_PLACED_REQ","match_id": match_id, 
+                                  "user_id": user_id, "ships": self.placed_ships})
             self.show_message("Ships placed! Entering queue...")
     
     ### For Custom Lobby ###
