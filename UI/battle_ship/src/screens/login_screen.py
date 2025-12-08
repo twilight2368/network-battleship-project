@@ -2,6 +2,7 @@
 
 import pygame
 from pygame.locals import *
+import os
 
 # Import từ components và network
 from src.components.gui_elements import WHITE, BLACK, draw_button, draw_input_box
@@ -11,10 +12,24 @@ def draw_login_screen(controller, clicked_events_occur):
     """Vẽ màn hình đăng nhập/đăng ký."""
     screen = controller.screen
     
-    screen.fill(WHITE)
+    # Draw background image if available
+    if hasattr(controller, 'login_bg_img') and controller.login_bg_img:
+        screen.blit(controller.login_bg_img, (0, 0))
+    else:
+        screen.fill(WHITE)
     
-    # Title
-    title = controller.font_large.render("BATTLESHIP", True, BLACK)
+    # Semi-transparent overlay for better text visibility
+    overlay = pygame.Surface((900, 700))
+    overlay.set_alpha(100)  # Adjust transparency (0-255)
+    overlay.fill((0, 0, 0))
+    screen.blit(overlay, (0, 0))
+    
+    # Title with shadow effect
+    title_shadow = controller.font_large.render("BATTLESHIP", True, BLACK)
+    title_shadow_rect = title_shadow.get_rect(center=(452, 102))
+    screen.blit(title_shadow, title_shadow_rect)
+    
+    title = controller.font_large.render("BATTLESHIP", True, (255, 215, 0))  # Gold color
     title_rect = title.get_rect(center=(450, 100))
     screen.blit(title, title_rect)
     
@@ -35,11 +50,11 @@ def draw_login_screen(controller, clicked_events_occur):
     # Handle input boxes
     if controller.input_mode in ["register_username", "login_username"]:
         prompt = "Enter username:"
-        screen.blit(controller.font_small.render(prompt, True, BLACK), (300, 480))
+        screen.blit(controller.font_small.render(prompt, True, WHITE), (300, 480))
         draw_input_box(screen, controller.font_small, 300, 510, 300, 40, controller.input_active, controller.input_text)
     elif controller.input_mode in ["register_password", "login_password"]:
         prompt = "Enter password:"
-        screen.blit(controller.font_small.render(prompt, True, BLACK), (300, 480))
+        screen.blit(controller.font_small.render(prompt, True, WHITE), (300, 480))
         draw_input_box(screen, controller.font_small, 300, 510, 300, 40, controller.input_active, controller.input_text)
 
 def handle_login_events(event, controller):
