@@ -288,7 +288,73 @@ class GameController:
             #Update Json
             send_json(self.sock, {"type": "SHIPS_PLACED_REQ","match_id": match_id, 
                                   "user_id": user_id, "ships": self.placed_ships})
+
+    def random_place_ships(self):
+        """Randomly place all ships on the board and send to server."""
+        import random
+        
+        # Reset board and placement data
+        self.state["my_board"] = [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+        self.placed_ships = {}
+        
+        for ship_name in self.ships_to_place:
+            size = self.ship_sizes[ship_name]
+            placed = False
+            max_attempts = 100  # Prevent infinite loop
+            attempts = 0
             
+            while not placed and attempts < max_attempts:
+                attempts += 1
+                # Random orientation: 0=vertical, 1=horizontal
+                orientation = random.randint(0, 1)
+                
+                # Random starting position
+                if orientation == 0:  # Vertical
+                    row = random.randint(0, BOARD_SIZE - size)
+                    col = random.randint(0, BOARD_SIZE - 1)
+                else:  # Horizontal
+                    row = random.randint(0, BOARD_SIZE - 1)
+                    col = random.randint(0, BOARD_SIZE - size)
+                
+                # Check if placement is valid
+                valid = True
+                for i in range(size):
+                    r = row + i if orientation == 0 else row
+                    c = col + i if orientation == 1 else col
+                    if self.state["my_board"][r][c] != "~":
+                        valid = False
+                        break
+                
+                if valid:
+                    # Place the ship
+                    for i in range(size):
+                        r = row + i if orientation == 0 else row
+                        c = col + i if orientation == 1 else col
+                        self.state["my_board"][r][c] = "s"
+                    self.current_ship_index += 1
+                    self.placed_ships[ship_name] = [row, col, orientation]
+                    placed = True
+            
+            if not placed:
+                # If failed to place, reset and try again
+                self.show_message("Random placement failed, retrying...")
+                self.random_place_ships()
+                return
+        
+        # All ships placed successfully
+        self.current_ship_index = len(self.ships_to_place)
+    
+        # Send ships to server
+        user_id = self.state["user_id"]
+        match_id = self.state["match_id"]
+        send_json(self.sock, {
+            "type": "SHIPS_PLACED_REQ",
+            "match_id": match_id, 
+            "user_id": user_id, 
+            "ships": self.placed_ships
+        })
+        
+        self.show_message("Ships randomly placed!")         
     
     ### For Custom Lobby ###
     
