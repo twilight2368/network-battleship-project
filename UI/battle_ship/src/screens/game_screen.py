@@ -112,6 +112,24 @@ def draw_game_screen(controller, clicked_events_occur):
     
     screen.fill(WHITE)
     
+    # Update timer
+    if state["my_turn"]:
+        elapsed_time = pygame.time.get_ticks() - controller.turn_start_time
+        remaining_ms = controller.turn_time_limit - elapsed_time
+        
+        if remaining_ms <= 0:
+            remaining_s = 0
+        else:
+            remaining_s = remaining_ms // 1000
+        time_text = f"YOUR TURN: {remaining_s:02d}s"
+        text_color = RED if remaining_s <= 5 else GREEN
+    else:
+        time_text = "OPPONENT'S TURN"
+        text_color = BLACK
+    time_surf = controller.font_small.render(time_text, True, text_color)
+    time_rect = time_surf.get_rect(topright=(880, 20))
+    screen.blit(time_surf, time_rect)    
+    
     # Title/Turn Indicator (Giữ nguyên)
     title = controller.font_medium.render(f"VS {state['enemy_name']}", True, BLACK)
     screen.blit(title, (50, 20))
@@ -144,6 +162,11 @@ def draw_game_screen(controller, clicked_events_occur):
 
 def handle_game_events(event, controller):
     """Xử lý sự kiện cho màn hình đặt tàu và game chính."""
+    
+    # update timer
+    controller.update_turn_timer()
+    
+    
     if event.type == KEYDOWN:
         # Rotate ship during placement
         if controller.placing_ships and event.key == K_r:

@@ -6,6 +6,7 @@ import threading
 import pygame
 from pygame.locals import *
 import os
+import random
 # Import modules
 from src.network.networking import DEFAULT_HOST, DEFAULT_PORT, send_json, recv_json
 from src.components.gui_elements import BOARD_SIZE, CELL_SIZE, WHITE, BLACK, RED, GREEN, BLUE, SHIP_SIZES, show_confirm_dialog
@@ -62,9 +63,9 @@ class GameController:
         self.water_img = None
         self.ship_images = {}
         
-        #Player turn time
-        self.turn_time_limit = 30  # seconds
-        self.timer_start_time = 0
+        #Player time
+        self.turn_time_limit = 30000  # 30 seconds per turn
+        self.turn_start_time = 0
         self.remaining_time = self.turn_time_limit
         
     ### Server Connection Methods ###
@@ -134,6 +135,7 @@ class GameController:
             # Chú ý: Trường hợp thành công sẽ được server gửi MATCH_FOUND thay thế.
           
         elif t == "MATCH_FOUND": 
+            
             # Cả 2 client (Host & Guest) đều nhận MATCH_FOUND
             #self.state["in_game"] = True - BO INGAME STATE
             self.state["in_queue"] = False
@@ -168,6 +170,10 @@ class GameController:
             self.placing_ships = False
             self.state["in_game"] = True
             
+            #reset time
+            if self.state["my_turn"]:
+                self.reset_turn_timer()
+            
             first_user_id = msg.get("first_turn", 0)
             self.state["my_turn"] = (first_user_id == self.state["user_id"])
             self.show_message("Match started!")
@@ -183,6 +189,9 @@ class GameController:
                 self.state["my_board"][r][c] = "X" if result in ["HIT", "SUNK"] else "O"
             
             self.state["my_turn"] = (msg["next_turn"] == self.state["user_id"])
+            #reset timer
+            if self.state["my_turn"]:
+                self.reset_turn_timer()
             self.show_message(f"{attacker} attacked ({r},{c}) -> {result}")
             
             if msg["next_turn"] == 0:
@@ -349,8 +358,44 @@ class GameController:
             except Exception as e:
                 print(f"ERROR: Cannot load ship image from {ship_path}. Error: {e}")
     
-    ### Timer Methods ###
+    ### Time handler ###
     def reset_turn_timer(self):
-        """Reset bộ đếm thời gian cho lượt chơi."""
-        self.timer_start_time = pygame.time.get_ticks()
+        self.turn_start_time = pygame.time.get_ticks()
         self.remaining_time = self.turn_time_limit
+        
+    def update_turn_timer(self):
+        if self.state["in_game"] and self.state["my_turn"]:
+            elapsed_time = pygame.time.get_ticks() - self.turn_start_time
+            if elapsed_time >= self.turn_time_limit:
+                self.perfrom_random_move()
+        
+    ### Random shooting handler ###
+    def find_random_cell(self):
+        unhit_cells = []
+        for r in range(BOARD_SIZE):
+            for c in range(BOARD_SIZE):
+                if self.state["enemy_board"][r][c] == "~":
+                    unhit_cells.append((r, c))
+        if unhit_cells:
+            return random.choice(unhit_cells)
+        return None
+    
+    def perfrom_random_move(self):
+        if not self.state["in_game"] or not self.state["my_turn"]:
+            return
+        
+        target = self.find_random_cell()
+        if target:
+            row, col = target
+            self.show_message(f"TIME OUT! Auto-firing at ({row}, {col})")
+            
+            # Gửi yêu cầu MOVE_REQ lên server
+            send_json(self.sock, {
+                "type": "MOVE_REQ",
+                "match_id": self.state["match_id"],
+                "user_id": self.state["user_id"],
+                "row": row,
+                "col": col
+            })
+            self.state["my_turn"] = False
+        
