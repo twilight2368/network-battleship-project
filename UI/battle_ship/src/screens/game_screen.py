@@ -4,7 +4,7 @@ import pygame
 from pygame.locals import *
 
 # Import từ components và network
-from src.components.gui_elements import BOARD_SIZE, CELL_SIZE, WHITE, BLACK, RED, GREEN, draw_button
+from src.components.gui_elements import BOARD_SIZE, CELL_SIZE, WHITE, BLACK, RED, GREEN, YELLOW, draw_button
 from src.network.networking import send_json
 
 # --- DRAWING LOGIC ---
@@ -71,7 +71,11 @@ def draw_ship_placement_screen(controller, clicked_events_occur):
         inst2 = controller.font_small.render("Click on board to place ship", True, BLACK)
         screen.blit(inst1, (50, 70))
         screen.blit(inst2, (50, 95))
-    
+
+         # Random Place Button - only show when placing ships
+        if draw_button(screen, controller.font_small, 50, 130, 180, 40, 
+                      "Random Place All", YELLOW, clicked_events_occur):
+            controller.random_place_ships()
     # Draw board
     board_x, board_y = 300, 150
     draw_board(controller, board_x, board_y, controller.state["my_board"], show_ships=True)
