@@ -4,7 +4,7 @@ import pygame
 from pygame.locals import *
 
 # Import từ components và network
-from src.components.gui_elements import WHITE, BLACK, BLUE, GREEN, draw_button, show_confirm_dialog, draw_input_box
+from src.components.gui_elements import ORANGE, WHITE, BLACK, BLUE, GREEN, draw_button, show_confirm_dialog, draw_input_box
 from src.network.networking import send_json
 
 
@@ -12,7 +12,10 @@ def draw_host_screen(controller, click_event_occurred):
     screen = controller.screen
     state = controller.state
     
-    screen.fill(WHITE)
+    if hasattr(controller, 'room_bg_img') and controller.room_bg_img:
+        screen.blit(controller.room_bg_img, (0, 0))
+    else:
+        screen.fill(WHITE)
     
     title = controller.font_medium.render("Hosting Custom Game", True, BLACK)
     screen.blit(title, (50, 50))
@@ -43,7 +46,10 @@ def draw_join_screen(controller, click_event_occurred):
     screen = controller.screen
     state = controller.state
     
-    screen.fill(WHITE)
+    if hasattr(controller, 'room_bg_img') and controller.room_bg_img:
+        screen.blit(controller.room_bg_img, (0, 0))
+    else:
+        screen.fill(WHITE)
     
     title = controller.font_medium.render("Join Custom Game", True, BLACK)
     screen.blit(title, (50, 50))
@@ -90,11 +96,10 @@ def handle_join_lobby_events(event, controller):
                 if len(controller.input_text) < 5 and event.unicode.isalnum(): # Giới hạn mã phòng 5 ký tự và chỉ cho phép chữ/số
                     controller.input_text += event.unicode
                     
-
-
 def draw_lobby_screen(controller, click_event_occurred):
     """Vẽ màn hình sảnh (lobby) và các trạng thái phụ."""
     state = controller.state
+    
     
     # 1. Xử lý màn hình Custom Lobby
     if state.get("in_custom_lobby"): 
@@ -106,17 +111,28 @@ def draw_lobby_screen(controller, click_event_occurred):
 
     # 2. Xử lý màn hình Queue (Giữ nguyên)
     screen = controller.screen
-    screen.fill(WHITE)
     
+    # Draw background image if available
+    if hasattr(controller, 'lobby_bg_img') and controller.lobby_bg_img:
+        screen.blit(controller.lobby_bg_img, (0, 0))
+    else:
+        screen.fill(WHITE)
+        
     # Title
     title = controller.font_medium.render(f"Welcome, {state['username']}", True, BLACK)
     screen.blit(title, (50, 50))
     
     if state["in_queue"]:
-        queue_text = controller.font_large.render("Waiting for opponent...", True, BLUE)
+        
+        if hasattr(controller, 'in_queue_bg_img') and controller.in_queue_bg_img:
+            screen.blit(controller.in_queue_bg_img, (0, 0))
+        else:
+            screen.fill(WHITE)
+        
+        queue_text = controller.font_large.render("Waiting for opponent...", True, ORANGE)
         text_rect = queue_text.get_rect(center=(450, 300))
         screen.blit(queue_text, text_rect)
-        
+            
         if draw_button(screen, controller.font_small, 300, 400, 300, 50, "EXIT QUEUE", event_click=click_event_occurred):
             if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_medium, "Exit matchmaking queue?"):
                 send_json(controller.sock, {"type": "QUEUE_EXIT_REQ"})

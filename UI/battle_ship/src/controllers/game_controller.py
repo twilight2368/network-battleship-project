@@ -424,13 +424,33 @@ class GameController:
             except Exception as e:
                 print(f"ERROR: Cannot load ship image from {ship_path}. Error: {e}")
         
-        # 3. Load login background image    
-        login_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg.jpg")  # or .png
+        # 3.1 Load login background image    
+        login_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-1.jpg")  # or .png
         try:
-            self.login_bg_img = pygame.image.load(login_bg_path)
-            self.login_bg_img = pygame.transform.scale(self.login_bg_img, (900, 700))
+            self.login_bg_img = self.scale_image_with_aspect_ratio(login_bg_path, 900, 700)
         except Exception as e:
             print(f"ERROR: Cannot load login background from {login_bg_path}. Error: {e}")
+        
+        # 3.2 Load lobby background image    
+        lobby_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-2.jpg")  # or .png
+        try:
+            self.lobby_bg_img = self.scale_image_with_aspect_ratio(lobby_bg_path, 900, 700)
+        except Exception as e:
+            print(f"ERROR: Cannot load lobby background from {lobby_bg_path}. Error: {e}")
+        
+        # 3.3 Load in queue background image    
+        in_queue_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-4.jpg")  # or .png
+        try:
+            self.in_queue_bg_img = self.scale_image_with_aspect_ratio(in_queue_bg_path, 900, 700)
+        except Exception as e:
+            print(f"ERROR: Cannot load lobby background from {in_queue_bg_path}. Error: {e}")
+        
+        # 3.4 Load room background image    
+        room_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-5.jpg")  # or .png
+        try:
+            self.room_bg_img = self.scale_image_with_aspect_ratio(room_bg_path, 900, 700)
+        except Exception as e:
+            print(f"ERROR: Cannot load lobby background from {room_bg_path}. Error: {e}")
             
     ### Timer Methods ###
     def reset_turn_timer(self):
@@ -473,3 +493,71 @@ class GameController:
             })
             self.state["my_turn"] = False
         
+    def scale_image_with_aspect_ratio(self, image_path, target_width, target_height, fill_mode='cover'):
+        """
+        Scale image maintaining aspect ratio.
+        
+        Args:
+            image_path: Path to the image file
+            target_width: Target width (900)
+            target_height: Target height (700)
+            fill_mode: 'cover' (fill screen, crop excess) or 'contain' (fit inside, show borders)
+        
+        Returns:
+            Scaled pygame Surface
+        """
+        img = pygame.image.load(image_path)
+        img_width, img_height = img.get_size()
+        
+        # Calculate aspect ratios
+        img_aspect = img_width / img_height
+        target_aspect = target_width / target_height
+        
+        if fill_mode == 'cover':
+            # Fill entire screen (crop if necessary)
+            if img_aspect > target_aspect:
+                # Image is wider - scale by height
+                scale_height = target_height
+                scale_width = int(scale_height * img_aspect)
+            else:
+                # Image is taller - scale by width
+                scale_width = target_width
+                scale_height = int(scale_width / img_aspect)
+            
+            # Scale the image
+            scaled_img = pygame.transform.scale(img, (scale_width, scale_height))
+            
+            # Create final surface and center the image
+            final_surface = pygame.Surface((target_width, target_height))
+            
+            # Calculate position to center
+            x_offset = (target_width - scale_width) // 2
+            y_offset = (target_height - scale_height) // 2
+            
+            final_surface.blit(scaled_img, (x_offset, y_offset))
+            return final_surface
+        
+        else:  # 'contain' mode
+            # Fit inside screen (show borders if necessary)
+            if img_aspect > target_aspect:
+                # Image is wider - scale by width
+                scale_width = target_width
+                scale_height = int(scale_width / img_aspect)
+            else:
+                # Image is taller - scale by height
+                scale_height = target_height
+                scale_width = int(scale_height * img_aspect)
+            
+            # Scale the image
+            scaled_img = pygame.transform.scale(img, (scale_width, scale_height))
+            
+            # Create final surface with black background
+            final_surface = pygame.Surface((target_width, target_height))
+            final_surface.fill((0, 0, 0))  # Black borders
+            
+            # Calculate position to center
+            x_offset = (target_width - scale_width) // 2
+            y_offset = (target_height - scale_height) // 2
+            
+            final_surface.blit(scaled_img, (x_offset, y_offset))
+            return final_surface
