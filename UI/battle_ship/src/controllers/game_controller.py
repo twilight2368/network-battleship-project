@@ -423,8 +423,16 @@ class GameController:
                 }
             except Exception as e:
                 print(f"ERROR: Cannot load ship image from {ship_path}. Error: {e}")
-    
-    ### Time handler ###
+        
+        # 3. Load login background image    
+        login_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg.jpg")  # or .png
+        try:
+            self.login_bg_img = pygame.image.load(login_bg_path)
+            self.login_bg_img = pygame.transform.scale(self.login_bg_img, (900, 700))
+        except Exception as e:
+            print(f"ERROR: Cannot load login background from {login_bg_path}. Error: {e}")
+            
+    ### Timer Methods ###
     def reset_turn_timer(self):
         self.turn_start_time = pygame.time.get_ticks()
         self.remaining_time = self.turn_time_limit
