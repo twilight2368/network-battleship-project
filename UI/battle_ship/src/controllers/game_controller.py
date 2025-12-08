@@ -62,6 +62,11 @@ class GameController:
         self.water_img = None
         self.ship_images = {}
         
+        #Player turn time
+        self.turn_time_limit = 30  # seconds
+        self.timer_start_time = 0
+        self.remaining_time = self.turn_time_limit
+        
     ### Server Connection Methods ###
     
     def connect_server(self):
@@ -129,8 +134,6 @@ class GameController:
             # Chú ý: Trường hợp thành công sẽ được server gửi MATCH_FOUND thay thế.
           
         elif t == "MATCH_FOUND": 
-            # Đảm bảo logic custom lobby được xử lý đúng (MATCH_FOUND tự động bắt đầu game)
-            
             # Cả 2 client (Host & Guest) đều nhận MATCH_FOUND
             #self.state["in_game"] = True - BO INGAME STATE
             self.state["in_queue"] = False
@@ -346,3 +349,8 @@ class GameController:
             except Exception as e:
                 print(f"ERROR: Cannot load ship image from {ship_path}. Error: {e}")
     
+    ### Timer Methods ###
+    def reset_turn_timer(self):
+        """Reset bộ đếm thời gian cho lượt chơi."""
+        self.timer_start_time = pygame.time.get_ticks()
+        self.remaining_time = self.turn_time_limit

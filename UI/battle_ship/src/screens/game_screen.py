@@ -79,11 +79,11 @@ def draw_ship_placement_screen(controller, clicked_events_occur):
     # Draw preview - UPDATE match start
     if controller.current_ship_index >= len(controller.ships_to_place):
         title = controller.font_large.render("Ships placed!", True, GREEN)
-        title_rect = title.get_rect(center=(450, 70))
+        title_rect = title.get_rect(center=(450, 40))
         screen.blit(title, title_rect)
         
         wait_text = controller.font_medium.render("Waiting for opponent to place ships...", True, BLACK)
-        wait_rect = wait_text.get_rect(center=(450, 120))
+        wait_rect = wait_text.get_rect(center=(450, 90))
         screen.blit(wait_text, wait_rect)
     else:
         mouse_pos = pygame.mouse.get_pos()
@@ -128,6 +128,7 @@ def draw_game_screen(controller, clicked_events_occur):
     enemy_label = controller.font_small.render("Enemy Board", True, BLACK)
     screen.blit(enemy_label, (530, 80))
     enemy_board_rect = draw_board(controller, 480, 130, state["enemy_board"], show_ships=False)
+    
     
     # Buttons
     if draw_button(screen, controller.font_small, 350, 500, 200, 50, "RESIGN", event_click=clicked_events_occur):
