@@ -32,7 +32,7 @@ class GameController:
             "lobby_code": "",
             "opponent_joined": False,
         }
-        
+        self.show_password = False
         # Ship placement logic (Giữ nguyên)
         self.placing_ships = False
         self.ships_to_place = ["carrier", "battleship", "cruiser", "submarine", "destroyer"]
@@ -451,6 +451,14 @@ class GameController:
             self.room_bg_img = self.scale_image_with_aspect_ratio(room_bg_path, 900, 700)
         except Exception as e:
             print(f"ERROR: Cannot load lobby background from {room_bg_path}. Error: {e}")
+    
+            
+        # 3.5 Load in game background image    
+        in_game_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-3.jpg")  # or .png
+        try:
+            self.in_game_bg_img = self.scale_image_with_aspect_ratio(in_game_bg_path, 900, 700)
+        except Exception as e:
+            print(f"ERROR: Cannot load lobby background from {in_game_bg_path}. Error: {e}")
             
     ### Timer Methods ###
     def reset_turn_timer(self):

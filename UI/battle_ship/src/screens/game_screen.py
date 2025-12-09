@@ -9,7 +9,7 @@ from src.network.networking import send_json
 
 # --- DRAWING LOGIC ---
 
-def draw_board(controller, x_offset, y_offset, board, show_ships=True):
+def draw_board(controller, x_offset, y_offset, board, show_ships=True, color_number = BLACK):
     """Vẽ board game. (Rút gọn)"""
     screen = controller.screen
     # ... (Logic draw_board giữ nguyên như trong file gốc, sử dụng controller.water_img, controller.ship_images)
@@ -48,10 +48,10 @@ def draw_board(controller, x_offset, y_offset, board, show_ships=True):
         pygame.draw.line(screen, BLACK, (x_offset + i * CELL_SIZE, y_offset), (x_offset + i * CELL_SIZE, y_offset + 300), 1)
         pygame.draw.line(screen, BLACK, (x_offset, y_offset + i * CELL_SIZE), (x_offset + 300, y_offset + i * CELL_SIZE), 1)
     for i in range(BOARD_SIZE):
-        text = controller.font_small.render(str(i), True, BLACK)
-        screen.blit(text, (x_offset + i * CELL_SIZE + 10, y_offset - 25))
-        text = controller.font_small.render(str(i), True, BLACK)
-        screen.blit(text, (x_offset - 25, y_offset + i * CELL_SIZE + 5))
+        text = controller.font_small.render(str(i), True, color_number)
+        screen.blit(text, (x_offset + i * CELL_SIZE + 10, y_offset - 26))
+        text = controller.font_small.render(str(i), True, color_number)
+        screen.blit(text, (x_offset - 25, y_offset + i * CELL_SIZE + 1))
     
     return x_offset, y_offset, 300, 300
 
@@ -59,6 +59,17 @@ def draw_ship_placement_screen(controller, clicked_events_occur):
     """Vẽ màn hình đặt tàu."""
     screen = controller.screen
     screen.fill(WHITE)
+    
+    # Draw background image if available
+    if hasattr(controller, 'in_queue_bg_img') and controller.in_queue_bg_img:
+        screen.blit(controller.in_queue_bg_img, (0, 0))
+    else:
+        screen.fill(WHITE)
+     # Semi-transparent overlay for better text visibility
+    overlay = pygame.Surface((900, 700))
+    overlay.set_alpha(100)  # Adjust transparency (0-255)
+    overlay.fill(WHITE)
+    screen.blit(overlay, (0, 0))
     
     # Title và Instructions 
     if controller.current_ship_index < len(controller.ships_to_place):
@@ -116,6 +127,11 @@ def draw_game_screen(controller, clicked_events_occur):
     
     screen.fill(WHITE)
     
+    if hasattr(controller, 'in_game_bg_img') and controller.in_game_bg_img:
+        screen.blit(controller.in_game_bg_img, (0, 0))
+    else:
+        screen.fill(WHITE)
+    
     # Update timer
     if state["my_turn"]:
         elapsed_time = pygame.time.get_ticks() - controller.turn_start_time
@@ -135,7 +151,7 @@ def draw_game_screen(controller, clicked_events_occur):
     screen.blit(time_surf, time_rect)    
     
     # Title/Turn Indicator (Giữ nguyên)
-    title = controller.font_medium.render(f"VS {state['enemy_name']}", True, BLACK)
+    title = controller.font_medium.render(f"VS {state['enemy_name']}", True, WHITE)
     screen.blit(title, (50, 20))
     turn_text = "YOUR TURN - Click enemy board to attack" if state["my_turn"] else "OPPONENT'S TURN"
     turn_color = GREEN if state["my_turn"] else RED
@@ -143,13 +159,13 @@ def draw_game_screen(controller, clicked_events_occur):
     screen.blit(turn_surf, (50, 55))
     
     # Draw boards
-    my_label = controller.font_small.render("Your Board", True, BLACK)
+    my_label = controller.font_small.render("Your Board", True,  WHITE)
     screen.blit(my_label, (130, 80))
-    draw_board(controller, 80, 130, state["my_board"], show_ships=True)
+    draw_board(controller, 80, 130, state["my_board"], show_ships=True, color_number=WHITE)
     
-    enemy_label = controller.font_small.render("Enemy Board", True, BLACK)
+    enemy_label = controller.font_small.render("Enemy Board", True,  WHITE)
     screen.blit(enemy_label, (530, 80))
-    enemy_board_rect = draw_board(controller, 480, 130, state["enemy_board"], show_ships=False)
+    enemy_board_rect = draw_board(controller, 480, 130, state["enemy_board"], show_ships=False, color_number=WHITE)
     
     
     # Buttons

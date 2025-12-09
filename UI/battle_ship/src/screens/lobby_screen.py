@@ -24,22 +24,22 @@ def draw_host_screen(controller, click_event_occurred):
     code_label = controller.font_medium.render("Room Code:", True, BLACK)
     screen.blit(code_label, (300, 150))
     code_text = controller.font_large.render(state['lobby_code'], True, BLUE)
-    screen.blit(code_text, (300, 180))
+    screen.blit(code_text, (300, 190))
     
     # Thông báo chờ
     if not state.get("opponent_joined"): 
-        wait_text = controller.font_medium.render("Waiting for opponent to join...", True, BLACK)
-        wait_color = BLACK
+        wait_text = controller.font_medium.render("Waiting for opponent to join...", True, ORANGE)
+        
     else:
         wait_text = controller.font_medium.render("Opponent found! Starting game...", True, GREEN)
-        wait_color = GREEN
+       
         
     wait_rect = wait_text.get_rect(center=(450, 300))
     screen.blit(wait_text, wait_rect)
 
     # Nút quay lại
     if draw_button(screen, controller.font_small, 300, 450, 300, 50, "RETURN TO LOBBY", event_click=click_event_occurred):
-        if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_medium, "Close lobby and return?"):
+        if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_small, "Close lobby and return?"):
             controller.return_to_lobby()
             
 def draw_join_screen(controller, click_event_occurred):
@@ -59,7 +59,7 @@ def draw_join_screen(controller, click_event_occurred):
     input_active = controller.input_mode == "join_lobby_code"
 
     # Input box
-    draw_input_box(screen, controller.font_medium, 300, 250, 300, 50, input_active, input_text, placeholder="Enter room code...")
+    draw_input_box(screen, controller.font_small, 300, 250, 300, 50, input_active, input_text, placeholder="Enter room code...")
     
     # Nút JOIN LOBBY (Enter)
     if draw_button(screen, controller.font_small, 300, 320, 300, 50, "JOIN LOBBY", event_click=click_event_occurred):
@@ -119,7 +119,7 @@ def draw_lobby_screen(controller, click_event_occurred):
         screen.fill(WHITE)
         
     # Title
-    title = controller.font_medium.render(f"Welcome, {state['username']}", True, BLACK)
+    title = controller.font_large.render(f"Welcome, {state['username']}", True, BLACK)
     screen.blit(title, (50, 50))
     
     if state["in_queue"]:
@@ -134,7 +134,7 @@ def draw_lobby_screen(controller, click_event_occurred):
         screen.blit(queue_text, text_rect)
             
         if draw_button(screen, controller.font_small, 300, 400, 300, 50, "EXIT QUEUE", event_click=click_event_occurred):
-            if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_medium, "Exit matchmaking queue?"):
+            if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_small, "Exit matchmaking queue?"):
                 send_json(controller.sock, {"type": "QUEUE_EXIT_REQ"})
                 controller.show_message("Exited queue.")
 
@@ -156,7 +156,7 @@ def draw_lobby_screen(controller, click_event_occurred):
         
         # LOGOUT (Vị trí mới: 460)
         if draw_button(screen, controller.font_small, 300, 460, 300, 50, "LOGOUT", event_click=click_event_occurred):
-            if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_medium, "Are you sure you want to logout?"):
+            if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_small, "Are you sure you want to logout?"):
                 send_json(controller.sock, {"type": "LOGOUT"})
                 state["is_login"] = False
                 state["username"] = ""

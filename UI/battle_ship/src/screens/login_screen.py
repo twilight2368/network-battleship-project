@@ -5,7 +5,7 @@ from pygame.locals import *
 import os
 
 # Import từ components và network
-from src.components.gui_elements import WHITE, BLACK, draw_button, draw_input_box
+from src.components.gui_elements import WHITE, BLACK, draw_button, draw_input_box, draw_password_input_box
 from src.network.networking import send_json
 
 def draw_login_screen(controller, clicked_events_occur):
@@ -55,7 +55,20 @@ def draw_login_screen(controller, clicked_events_occur):
     elif controller.input_mode in ["register_password", "login_password"]:
         prompt = "Enter password:"
         screen.blit(controller.font_small.render(prompt, True, WHITE), (300, 480))
-        draw_input_box(screen, controller.font_small, 300, 510, 300, 40, controller.input_active, controller.input_text)
+        
+        eye_clicked = draw_password_input_box(
+            screen,
+            controller.font_small,
+            300, 510, 300, 40,
+            controller.input_active,
+            controller.input_text,
+            controller.show_password,     # NEW — controls visibility
+            clicked_events_occur          # NEW — click detection
+        )
+
+        # Toggle visibility if clicked
+        if eye_clicked:
+            controller.show_password = not controller.show_password
 
 def handle_login_events(event, controller):
     """Xử lý sự kiện bàn phím cho màn hình đăng nhập/đăng ký."""

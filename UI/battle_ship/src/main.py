@@ -24,9 +24,9 @@ def run_game(controller):
     controller.clock = pygame.time.Clock()
     
     # Load fonts
-    controller.font_large = pygame.font.Font(None, 48)
-    controller.font_medium = pygame.font.Font(None, 32)
-    controller.font_small = pygame.font.Font(None, 24)
+    controller.font_large = pygame.font.SysFont("stencil", 48)
+    controller.font_medium = pygame.font.SysFont("impact", 32)
+    controller.font_small = pygame.font.SysFont("agencyfb", 24)
     
     # Load assets
     controller.load_images()
