@@ -90,7 +90,7 @@ User db_get_user(Database *database, const char *username)
 {
     User user = {0};
     sqlite3_stmt *stmt;
-    const char *sql = "SELECT id, username, password_hash, elo, wins, losses FROM users WHERE username = ?;";
+    const char *sql = "SELECT id, username, elo, wins, losses FROM users WHERE username = ?;";
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
         return user;
 
@@ -100,7 +100,6 @@ User db_get_user(Database *database, const char *username)
     {
         user.id = sqlite3_column_int(stmt, 0);
         snprintf(user.username, sizeof(user.username), "%s", sqlite3_column_text(stmt, 1));
-        snprintf(user.password_hash, sizeof(user.password_hash), "%s", sqlite3_column_text(stmt, 2));
         user.elo = sqlite3_column_int(stmt, 3);
         user.wins = sqlite3_column_int(stmt, 4);
         user.losses = sqlite3_column_int(stmt, 5);
@@ -125,6 +124,22 @@ int db_update_user_elo(Database *database, const char *username, int new_elo)
     return (rc == SQLITE_DONE) ? 0 : 1;
 }
 
+int db_update_user_win_lose(Database *database, const char *username, int new_win, int new_lose)
+{
+    sqlite3_stmt *stmt;
+    const char *sql = "UPDATE users SET wins = ?, losses = ? WHERE username = ?;";
+    if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
+        return 1;
+
+    sqlite3_bind_int(stmt, 1, new_win);
+    sqlite3_bind_int(stmt, 2, new_lose);
+    sqlite3_bind_text(stmt, 3, username, -1, SQLITE_TRANSIENT);
+
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    return (rc == SQLITE_DONE) ? 0 : 1;
+}
+
 int db_delete_user(Database *database, const char *username)
 {
     sqlite3_stmt *stmt;
@@ -143,7 +158,7 @@ User *db_get_all_users(Database *database, int *count)
 {
     *count = 0;
     sqlite3_stmt *stmt;
-    const char *sql = "SELECT id, username, password_hash, elo, wins, losses FROM users;";
+    const char *sql = "SELECT username, elo, wins, losses FROM users;";
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
         return NULL;
 
@@ -159,12 +174,51 @@ User *db_get_all_users(Database *database, int *count)
         }
 
         User *u = &users[*count];
-        u->id = sqlite3_column_int(stmt, 0);
-        snprintf(u->username, sizeof(u->username), "%s", sqlite3_column_text(stmt, 1));
-        snprintf(u->password_hash, sizeof(u->password_hash), "%s", sqlite3_column_text(stmt, 2));
-        u->elo = sqlite3_column_int(stmt, 3);
-        u->wins = sqlite3_column_int(stmt, 4);
-        u->losses = sqlite3_column_int(stmt, 5);
+        snprintf(u->username, sizeof(u->username), "%s", sqlite3_column_text(stmt, 0));
+        u->elo = sqlite3_column_int(stmt, 1);
+        u->wins = sqlite3_column_int(stmt, 2);
+        u->losses = sqlite3_column_int(stmt, 3);
+        (*count)++;
+    }
+
+    sqlite3_finalize(stmt);
+    return users;
+}
+
+User *db_get_top_users_by_elo(Database *database, int *count)
+{
+    *count = 0;
+    sqlite3_stmt *stmt;
+
+    const char *sql =
+        "SELECT username, elo, wins, losses "
+        "FROM users "
+        "ORDER BY elo DESC "
+        "LIMIT 20;";
+
+    if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
+        return NULL;
+
+    int capacity = 20; // fixed size, since LIMIT 20
+    User *users = malloc(sizeof(User) * capacity);
+    if (!users)
+    {
+        sqlite3_finalize(stmt);
+        return NULL;
+    }
+
+    while (sqlite3_step(stmt) == SQLITE_ROW)
+    {
+        User *u = &users[*count];
+
+        const unsigned char *name = sqlite3_column_text(stmt, 0);
+        snprintf(u->username, sizeof(u->username), "%s",
+                 name ? (const char *)name : "");
+
+        u->elo = sqlite3_column_int(stmt, 1);
+        u->wins = sqlite3_column_int(stmt, 2);
+        u->losses = sqlite3_column_int(stmt, 3);
+
         (*count)++;
     }
 

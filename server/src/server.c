@@ -39,6 +39,8 @@ typedef struct
     int user_id;
     char username[64];
     int elo;
+    int win;
+    int lose;
 } Player;
 
 typedef struct
@@ -98,6 +100,40 @@ Player *getPlayerByUserId(int user_id)
             return &connectedPlayers[i];
     }
     return NULL;
+}
+
+// Find online player with their status -> cJSON return
+cJSON *get_online_players_status_json()
+{
+    cJSON *players_array = cJSON_CreateArray();
+    if (!players_array)
+        return NULL;
+
+    pthread_mutex_lock(&connections_lock);
+
+    for (int i = 0; i < MAX_CLIENTS; i++)
+    {
+        Player *p = &connectedPlayers[i];
+
+        // Only include connected & logged-in players
+        if (p->socket_fd > 0 && p->is_login)
+        {
+            cJSON *player_obj = cJSON_CreateObject();
+            if (!player_obj)
+                continue;
+
+            cJSON_AddStringToObject(player_obj, "username", p->username);
+            cJSON_AddBoolToObject(player_obj, "in_game", p->in_game);
+            cJSON_AddBoolToObject(player_obj, "in_queue", p->in_queue);
+            cJSON_AddBoolToObject(player_obj, "is_login", p->is_login);
+
+            cJSON_AddItemToArray(players_array, player_obj);
+        }
+    }
+
+    pthread_mutex_unlock(&connections_lock);
+
+    return players_array;
 }
 
 // todo: ================= LOBBIES FUNCITONS =====================
@@ -299,6 +335,37 @@ int place_ship_from_json(BoardState *board, cJSON *ships_json, const char *ship_
     int orient = cJSON_GetArrayItem(ship, 2)->valueint;
 
     return place_ship(board, type_enum, row, col, orient == 1 ? HORIZONTAL : VERTICAL);
+}
+
+cJSON *get_top20_leaderboard_json(void)
+{
+    int count = 0;
+    User *users = db_get_top_users_by_elo(&db, &count);
+
+    cJSON *array = cJSON_CreateArray();
+    if (!array)
+        return NULL;
+
+    if (!users || count == 0)
+        return array; // return empty array safely
+
+    for (int i = 0; i < count; i++)
+    {
+        cJSON *obj = cJSON_CreateObject();
+        if (!obj)
+            continue;
+
+        cJSON_AddNumberToObject(obj, "rank", i + 1);
+        cJSON_AddStringToObject(obj, "username", users[i].username);
+        cJSON_AddNumberToObject(obj, "elo", users[i].elo);
+        cJSON_AddNumberToObject(obj, "wins", users[i].wins);
+        cJSON_AddNumberToObject(obj, "losses", users[i].losses);
+
+        cJSON_AddItemToArray(array, obj);
+    }
+
+    free(users);
+    return array;
 }
 
 // todo: ================= MATCHMAKING THREAD ===================
@@ -503,11 +570,13 @@ int main(int argc, char const *argv[])
 
                             db_update_user_elo(&db, opponent->username, new_elo_opponent);
                             db_update_user_elo(&db, player->username, new_elo_disconnected);
-
+                            db_update_user_win_lose(&db, player->username, player->win, player->lose + 1);
+                            db_update_user_win_lose(&db, opponent->username, opponent->win + 1, opponent->lose);
                             // Update local state
                             pthread_mutex_lock(&connections_lock);
                             opponent->elo = new_elo_opponent;
                             opponent->in_game = 0;
+                            opponent->win++;
                             pthread_mutex_unlock(&connections_lock);
 
                             // Notify opponent
@@ -624,6 +693,8 @@ int main(int argc, char const *argv[])
                                 strncpy(player->username, db_user.username, sizeof(player->username) - 1);
                                 player->elo = db_user.elo;
                                 player->is_login = 1;
+                                player->win = db_user.wins;
+                                player->lose = db_user.losses;
                                 pthread_mutex_unlock(&connections_lock);
 
                                 // Send login response
@@ -867,6 +938,8 @@ int main(int argc, char const *argv[])
 
                                 db_update_user_elo(&db, attacker->username, new_elo_attacker);
                                 db_update_user_elo(&db, opponent->username, new_elo_opponent);
+                                db_update_user_win_lose(&db, attacker->username, attacker->win + 1, attacker->lose);
+                                db_update_user_win_lose(&db, opponent->username, opponent->win, opponent->lose + 1);
                                 db_update_match_result(&db, match_id, winner_str);
 
                                 pthread_mutex_lock(&connections_lock);
@@ -874,6 +947,8 @@ int main(int argc, char const *argv[])
                                 opponent->elo = new_elo_opponent;
                                 attacker->in_game = 0;
                                 opponent->in_game = 0;
+                                attacker->win++;
+                                opponent->lose++;
                                 pthread_mutex_unlock(&connections_lock);
 
                                 // Notify players
@@ -950,13 +1025,16 @@ int main(int argc, char const *argv[])
 
                             db_update_user_elo(&db, opponent->username, new_elo_opponent);
                             db_update_user_elo(&db, resigner->username, new_elo_resigner);
-
+                            db_update_user_win_lose(&db, opponent->username, opponent->win + 1, opponent->lose);
+                            db_update_user_win_lose(&db, resigner->username, resigner->win, resigner->lose + 1);
                             // Update local state
                             pthread_mutex_lock(&connections_lock);
                             opponent->elo = new_elo_opponent;
                             resigner->elo = new_elo_resigner;
                             opponent->in_game = 0;
                             resigner->in_game = 0;
+                            opponent->win++;
+                            resigner->lose++;
                             pthread_mutex_unlock(&connections_lock);
 
                             // Notify both players
@@ -1101,6 +1179,28 @@ int main(int argc, char const *argv[])
                             {
                                 sendError(client_fd, "LOBBY_CLOSE_REQ requires 'code'.");
                             }
+                        }
+                        // todo: ONLINE PLAYERS LIST
+                        else if (strcmp(endpoint, "ONLINE_PLAYERS_REQ") == 0)
+                        {
+                            cJSON *players = get_online_players_status_json();
+                            cJSON *res = cJSON_CreateObject();
+
+                            cJSON_AddStringToObject(res, "type", "ONLINE_PLAYERS_RES");
+                            cJSON_AddItemToObject(res, "players", players);
+
+                            sendResponse(client_fd, res);
+                        }
+                        // todo: LEADERBOARD PLAYERS LIST
+                        else if (strcmp(endpoint, "LEADERBOARD_REQ") == 0)
+                        {
+                            cJSON *players = get_top20_leaderboard_json();
+                            cJSON *res = cJSON_CreateObject();
+
+                            cJSON_AddStringToObject(res, "type", "LEADERBOARD_RES");
+                            cJSON_AddItemToObject(res, "players", players);
+
+                            sendResponse(client_fd, res);
                         }
                         else // todo: UNKNOWN
                         {
