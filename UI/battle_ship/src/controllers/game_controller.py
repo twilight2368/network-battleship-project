@@ -7,13 +7,13 @@ import pygame
 from pygame.locals import *
 import os
 import random
-# Import modules
+
 from src.network.networking import DEFAULT_HOST, DEFAULT_PORT, send_json, recv_json
 from src.components.gui_elements import BOARD_SIZE, CELL_SIZE, WHITE, BLACK, RED, GREEN, BLUE, SHIP_SIZES, show_confirm_dialog
 
 class GameController:
     def __init__(self, host=DEFAULT_HOST, port=DEFAULT_PORT):
-        # State Initialization (Giữ nguyên như trong file gốc)
+        # State Initialization
         self.state = {
             "is_login": False,
             "user_id": 0,
@@ -26,23 +26,30 @@ class GameController:
             "my_board": [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)],
             "enemy_board": [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)],
             
-            #Lobby state
+            # Lobby state
             "in_custom_lobby": False,
             "is_host": False,
             "lobby_code": "",
             "opponent_joined": False,
         }
         self.show_password = False
-        # Ship placement logic (Giữ nguyên)
+        
+        # Ship placement logic
         self.placing_ships = False
         self.ships_to_place = ["carrier", "battleship", "cruiser", "submarine", "destroyer"]
         self.current_ship_index = 0
         self.ship_orientation = 0  # 0=vertical, 1=horizontal
         self.placed_ships = {}
         self.temp_ship_cells = []
-        self.ship_sizes = SHIP_SIZES # Lấy từ gui_elements
+        self.ship_sizes = SHIP_SIZES
+        
+        # NEW: Drag & Drop support
+        self.ship_orientations = {}  # Track orientation for each ship
+        self.dragging_ship = None
+        self.drag_start_pos = None
+        self.ship_rects = {}  # Store rectangles for each ship item
 
-        # UI State (Giữ nguyên)
+        # UI State
         self.input_text = ""
         self.input_active = False
         self.input_mode = None
@@ -51,7 +58,7 @@ class GameController:
         self.message_timer = 0
         
         # Pygame & Network Setup
-        self.screen = None # Sẽ được khởi tạo trong main.py hoặc run()
+        self.screen = None
         self.clock = None
         self.font_large, self.font_medium, self.font_small = None, None, None
         self.sock = None
@@ -63,7 +70,7 @@ class GameController:
         self.water_img = None
         self.ship_images = {}
         
-        #Player time
+        # Player time
         self.turn_time_limit = 30000  # 30 seconds per turn
         self.turn_start_time = 0
         self.remaining_time = self.turn_time_limit
@@ -72,7 +79,6 @@ class GameController:
     
     def connect_server(self):
         """Connect to server"""
-        # ... (Giữ nguyên logic connect)
         try:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.connect((self.host, self.port))
@@ -91,7 +97,6 @@ class GameController:
 
     def receive_messages(self):
         """Thread để nhận tin nhắn từ server."""
-        # ... (Giữ nguyên logic receive_messages)
         while self.running:
             try:
                 msg = recv_json(self.sock)
@@ -106,11 +111,10 @@ class GameController:
             self.running = False
     
     def handle_server_message(self, msg):
-        """Xử lý các tin nhắn đến từ server. (Giữ nguyên logic)"""
+        """Xử lý các tin nhắn đến từ server."""
         print(f"Received: {msg}")
         t = msg.get("type", "")
         
-        # ... (Logic xử lý tin nhắn như trong file gốc)
         if t == "QUEUE_ENTER_RES":
             if msg.get("result", 0) == 1:
                 self.state["in_queue"] = True
@@ -125,52 +129,40 @@ class GameController:
                 self.state["lobby_code"] = msg["code"]
                 self.show_message(f"Lobby hosted! Code: {msg['code']}")
             else:
-                self.show_message(msg.get("message", "Failed to host lobby")) # Server nên gửi message chi tiết hơn
+                self.show_message(msg.get("message", "Failed to host lobby"))
 
         elif t == "JOIN_ROOM_RES":
             if msg.get("result", 0) == 0:
-                self.input_mode = "join_lobby_code" # Quay lại màn nhập mã
+                self.input_mode = "join_lobby_code"
                 self.input_active = True
                 self.show_message("Failed to join lobby. Check code or room is full.")
-            # Chú ý: Trường hợp thành công sẽ được server gửi MATCH_FOUND thay thế.
           
         elif t == "MATCH_FOUND": 
-            
-            # Cả 2 client (Host & Guest) đều nhận MATCH_FOUND
-            #self.state["in_game"] = True - BO INGAME STATE
             self.state["in_queue"] = False
             
-            # Nếu đang ở chế độ Custom Lobby, xóa input mode
             if self.state["in_custom_lobby"]:
                 self.input_mode = None
                 self.input_active = False
-                self.state["opponent_joined"] = True # Cập nhật trạng thái đối thủ cho Host
+                self.state["opponent_joined"] = True
             
             self.state["match_id"] = msg["match_id"]
             
-            # Tên đối thủ phụ thuộc vào việc mình là player1 hay player2 trong JSON
             is_player1 = self.state["username"] == msg["player1"]
             self.state["enemy_name"] = msg["player2"] if is_player1 else msg["player1"]
-            
-            # Kiểm tra xem mình có phải là người đi trước không - Update Bo ingame state
-            # self.state["my_turn"] = (msg.get("first_turn", 0) == 1 and is_player1) or \
-            #                         (msg.get("first_turn", 0) == 0 and not is_player1)
             
             self.show_message(f"Match found! Opponent: {self.state['enemy_name']}")
             self.start_ship_placement()
         
         elif t == "PLACE_SHIP_RES":
             if msg.get("result", 0) == 1:
-                self.show_message("Ships placed! Ready for match ...")
+                self.show_message("Ships placed! Ready for match...")
             else:
                 self.show_message("Ships placed failed!")
            
-        #update: match start
         elif t == "MATCH_START":
             self.placing_ships = False
             self.state["in_game"] = True
             
-            #reset time
             if self.state["my_turn"]:
                 self.reset_turn_timer()
             
@@ -189,7 +181,7 @@ class GameController:
                 self.state["my_board"][r][c] = "X" if result in ["HIT", "SUNK"] else "O"
             
             self.state["my_turn"] = (msg["next_turn"] == self.state["user_id"])
-            #reset timer
+            
             if self.state["my_turn"]:
                 self.reset_turn_timer()
             self.show_message(f"{attacker} attacked ({r},{c}) -> {result}")
@@ -234,81 +226,141 @@ class GameController:
         print(f"Message: {text}")
 
     ### Ship Placement Methods ###
+    
     def start_ship_placement(self):
         """Khởi động giai đoạn đặt tàu."""
-        # ... (Giữ nguyên logic start_ship_placement)
         self.placing_ships = True
         self.ships_to_place = ["carrier", "battleship", "cruiser", "submarine", "destroyer"]
         self.current_ship_index = 0
         self.ship_orientation = 0
-        self.placed_ships = {}
+        self.placed_ships = {ship: None for ship in self.ships_to_place}  # Initialize all as None
+        self.ship_orientations = {ship: 0 for ship in self.ships_to_place}  # Default all vertical
         self.state["my_board"] = [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
         self.state["enemy_board"] = [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
         self.temp_ship_cells = []
+        self.dragging_ship = None
+        self.drag_start_pos = None
     
-    def can_place_ship(self, row, col, ship_name):
+    def can_place_ship(self, row, col, ship_name, orientation=None):
         """Kiểm tra vị trí đặt tàu."""
-        # ... (Giữ nguyên logic can_place_ship)
+        if orientation is None:
+            orientation = self.ship_orientations.get(ship_name, 0)
+        
         size = self.ship_sizes[ship_name]
         
-        if self.ship_orientation == 0:  # Vertical
+        # Check bounds
+        if orientation == 0:  # Vertical
             if row + size > BOARD_SIZE:
                 return False
         else:  # Horizontal
             if col + size > BOARD_SIZE:
                 return False
         
+        # Check if cells are empty
         for i in range(size):
-            r = row + i if self.ship_orientation == 0 else row
-            c = col + i if self.ship_orientation == 1 else col
-            if self.state["my_board"][r][c] != "~":
+            r = row + i if orientation == 0 else row
+            c = col + i if orientation == 1 else col
+            cell = self.state["my_board"][r][c]
+            if cell != "~":
                 return False
         
         return True
     
-    def place_ship(self, row, col, ship_name):
-        """Đặt tàu lên board và gửi lên server nếu hoàn tất."""
+    def place_ship(self, row, col, ship_name, orientation=None):
+        """Đặt tàu lên board."""
+        if orientation is None:
+            orientation = self.ship_orientations.get(ship_name, 0)
+        
         size = self.ship_sizes[ship_name]
         
+        # Place ship on board
         for i in range(size):
-            r = row + i if self.ship_orientation == 0 else row
-            c = col + i if self.ship_orientation == 1 else col
+            r = row + i if orientation == 0 else row
+            c = col + i if orientation == 1 else col
             self.state["my_board"][r][c] = "s"
         
-        self.placed_ships[ship_name] = [row, col, self.ship_orientation]
-        self.current_ship_index += 1
-        
-        if self.current_ship_index >= len(self.ships_to_place):
-            #self.placing_ships = False
+        self.placed_ships[ship_name] = [row, col, orientation]
+        self.show_message(f"{ship_name.upper()} placed!")
+    
+    def remove_ship(self, ship_name):
+        """Remove a ship from the board"""
+        if ship_name in self.placed_ships and self.placed_ships[ship_name] is not None:
+            row, col, orientation = self.placed_ships[ship_name]
+            size = self.ship_sizes[ship_name]
             
-            #FIX LOGOUT_BUG - update: bo
-            #$self.state["in_queue"] = True
-            user_id = self.state["user_id"]
-            match_id = self.state["match_id"]
-            #Update Json
-            send_json(self.sock, {"type": "SHIPS_PLACED_REQ","match_id": match_id, 
-                                  "user_id": user_id, "ships": self.placed_ships})
+            # Clear cells
+            for i in range(size):
+                r = row + i if orientation == 0 else row
+                c = col + i if orientation == 1 else col
+                self.state["my_board"][r][c] = "~"
+            
+            self.placed_ships[ship_name] = None
+    
+    def rotate_ship(self, ship_name):
+        """Rotate a ship's orientation"""
+        current = self.ship_orientations.get(ship_name, 0)
+        new_orientation = 1 - current
+        self.ship_orientations[ship_name] = new_orientation
+        
+        # If ship is already placed on board (not being dragged), try to re-place with new orientation
+        if self.placed_ships.get(ship_name) is not None and self.dragging_ship != ship_name:
+            row, col, old_orient = self.placed_ships[ship_name]
+            self.remove_ship(ship_name)
+            
+            if self.can_place_ship(row, col, ship_name, new_orientation):
+                self.place_ship(row, col, ship_name, new_orientation)
+            else:
+                # If can't place with new orientation, revert
+                self.ship_orientations[ship_name] = old_orient
+                self.place_ship(row, col, ship_name, old_orient)
+                self.show_message(f"Can't rotate {ship_name} here!")
+        else:
+            # Ship is being dragged or not placed yet - just rotate the orientation
+            print(f"Rotated {ship_name} to {'horizontal' if new_orientation == 1 else 'vertical'}")
+    
+    def clear_all_ships(self):
+        """Clear all placed ships from board"""
+        for ship_name in self.ships_to_place:
+            self.remove_ship(ship_name)
+        self.show_message("All ships cleared!")
+    
+    def confirm_ship_placement(self):
+        """Send ship placement to server"""
+        # Check all ships are placed
+        if not all(self.placed_ships.get(ship) is not None for ship in self.ships_to_place):
+            self.show_message("Please place all ships first!")
+            return
+        
+        user_id = self.state["user_id"]
+        match_id = self.state["match_id"]
+        
+        send_json(self.sock, {
+            "type": "SHIPS_PLACED_REQ",
+            "match_id": match_id, 
+            "user_id": user_id, 
+            "ships": self.placed_ships
+        })
+        
+        self.show_message("Waiting for opponent...")
 
     def random_place_ships(self):
-        """Randomly place all ships on the board and send to server."""
+        """Randomly place all ships on the board."""
         import random
         
         # Reset board and placement data
         self.state["my_board"] = [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
-        self.placed_ships = {}
+        self.placed_ships = {ship: None for ship in self.ships_to_place}
         
         for ship_name in self.ships_to_place:
             size = self.ship_sizes[ship_name]
             placed = False
-            max_attempts = 100  # Prevent infinite loop
+            max_attempts = 100
             attempts = 0
             
             while not placed and attempts < max_attempts:
                 attempts += 1
-                # Random orientation: 0=vertical, 1=horizontal
                 orientation = random.randint(0, 1)
                 
-                # Random starting position
                 if orientation == 0:  # Vertical
                     row = random.randint(0, BOARD_SIZE - size)
                     col = random.randint(0, BOARD_SIZE - 1)
@@ -331,35 +383,21 @@ class GameController:
                         r = row + i if orientation == 0 else row
                         c = col + i if orientation == 1 else col
                         self.state["my_board"][r][c] = "s"
-                    self.current_ship_index += 1
+                    
                     self.placed_ships[ship_name] = [row, col, orientation]
+                    self.ship_orientations[ship_name] = orientation
                     placed = True
             
             if not placed:
-                # If failed to place, reset and try again
                 self.show_message("Random placement failed, retrying...")
                 self.random_place_ships()
                 return
         
-        # All ships placed successfully
-        self.current_ship_index = len(self.ships_to_place)
-    
-        # Send ships to server
-        user_id = self.state["user_id"]
-        match_id = self.state["match_id"]
-        send_json(self.sock, {
-            "type": "SHIPS_PLACED_REQ",
-            "match_id": match_id, 
-            "user_id": user_id, 
-            "ships": self.placed_ships
-        })
-        
-        self.show_message("Ships randomly placed!")         
+        self.show_message("Ships randomly placed!")
     
     ### For Custom Lobby ###
     
     def host_lobby_mode(self):
-        # Dùng user_id của client để tạo phòng
         send_json(self.sock, {"type": "CREATE_ROOM_REQ", "user_id": self.state["user_id"]})
         self.show_message("Requesting to host a game...")
 
@@ -369,7 +407,6 @@ class GameController:
         self.state["lobby_code"] = ""
         self.state["opponent_joined"] = False
         
-        # BẬT CHẾ ĐỘ NHẬP LIỆU:
         self.input_mode = "join_lobby_code" 
         self.input_text = ""               
         self.input_active = True           
@@ -390,14 +427,14 @@ class GameController:
         self.show_message("Returned to lobby.")
         
     ### Image Loading ###
+    
     def load_images(self):
-        """Load và scale hình ảnh, in ra chi tiết lỗi tải ảnh."""
+        """Load và scale hình ảnh."""
         self.water_img = None
         self.ship_images = {}
         
-        # Đường dẫn cơ sở: Giả định thư mục chạy chính (main.py) nằm cùng cấp với thư mục 'images'
-        BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # Lấy đường dẫn của game_controller.py
-        PROJECT_ROOT = os.path.join(BASE_DIR, '..', '..') # Lùi lại 2 cấp để về thư mục battle_ship/
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        PROJECT_ROOT = os.path.join(BASE_DIR, '..', '..')
 
         # 1. Load ảnh nước
         water_path = os.path.join(PROJECT_ROOT, "images", "water.jpg")
@@ -413,7 +450,7 @@ class GameController:
             ship_path = os.path.join(PROJECT_ROOT, "images", file_name)
             
             try:
-                img = pygame.image.load(ship_path).convert_alpha() # Dùng convert_alpha() cho ảnh PNG
+                img = pygame.image.load(ship_path).convert_alpha()
                 
                 self.ship_images[ship_name] = {
                     "vertical": pygame.transform.scale(img, (30, size * 30)),
@@ -424,43 +461,39 @@ class GameController:
             except Exception as e:
                 print(f"ERROR: Cannot load ship image from {ship_path}. Error: {e}")
         
-        # 3.1 Load login background image    
-        login_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-1.jpg")  # or .png
+        # 3. Load background images
+        login_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-1.jpg")
         try:
             self.login_bg_img = self.scale_image_with_aspect_ratio(login_bg_path, 900, 700)
         except Exception as e:
             print(f"ERROR: Cannot load login background from {login_bg_path}. Error: {e}")
         
-        # 3.2 Load lobby background image    
-        lobby_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-2.jpg")  # or .png
+        lobby_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-2.jpg")
         try:
             self.lobby_bg_img = self.scale_image_with_aspect_ratio(lobby_bg_path, 900, 700)
         except Exception as e:
             print(f"ERROR: Cannot load lobby background from {lobby_bg_path}. Error: {e}")
         
-        # 3.3 Load in queue background image    
-        in_queue_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-4.jpg")  # or .png
+        in_queue_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-4.jpg")
         try:
             self.in_queue_bg_img = self.scale_image_with_aspect_ratio(in_queue_bg_path, 900, 700)
         except Exception as e:
-            print(f"ERROR: Cannot load lobby background from {in_queue_bg_path}. Error: {e}")
+            print(f"ERROR: Cannot load in queue background from {in_queue_bg_path}. Error: {e}")
         
-        # 3.4 Load room background image    
-        room_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-5.jpg")  # or .png
+        room_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-5.jpg")
         try:
             self.room_bg_img = self.scale_image_with_aspect_ratio(room_bg_path, 900, 700)
         except Exception as e:
-            print(f"ERROR: Cannot load lobby background from {room_bg_path}. Error: {e}")
-    
+            print(f"ERROR: Cannot load room background from {room_bg_path}. Error: {e}")
             
-        # 3.5 Load in game background image    
-        in_game_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-3.jpg")  # or .png
+        in_game_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-3.jpg")
         try:
             self.in_game_bg_img = self.scale_image_with_aspect_ratio(in_game_bg_path, 900, 700)
         except Exception as e:
-            print(f"ERROR: Cannot load lobby background from {in_game_bg_path}. Error: {e}")
+            print(f"ERROR: Cannot load in game background from {in_game_bg_path}. Error: {e}")
             
     ### Timer Methods ###
+    
     def reset_turn_timer(self):
         self.turn_start_time = pygame.time.get_ticks()
         self.remaining_time = self.turn_time_limit
@@ -469,9 +502,10 @@ class GameController:
         if self.state["in_game"] and self.state["my_turn"]:
             elapsed_time = pygame.time.get_ticks() - self.turn_start_time
             if elapsed_time >= self.turn_time_limit:
-                self.perfrom_random_move()
+                self.perform_random_move()
         
     ### Random shooting handler ###
+    
     def find_random_cell(self):
         unhit_cells = []
         for r in range(BOARD_SIZE):
@@ -482,7 +516,7 @@ class GameController:
             return random.choice(unhit_cells)
         return None
     
-    def perfrom_random_move(self):
+    def perform_random_move(self):
         if not self.state["in_game"] or not self.state["my_turn"]:
             return
         
@@ -491,7 +525,6 @@ class GameController:
             row, col = target
             self.show_message(f"TIME OUT! Auto-firing at ({row}, {col})")
             
-            # Gửi yêu cầu MOVE_REQ lên server
             send_json(self.sock, {
                 "type": "MOVE_REQ",
                 "match_id": self.state["match_id"],
@@ -502,43 +535,25 @@ class GameController:
             self.state["my_turn"] = False
         
     def scale_image_with_aspect_ratio(self, image_path, target_width, target_height, fill_mode='cover'):
-        """
-        Scale image maintaining aspect ratio.
-        
-        Args:
-            image_path: Path to the image file
-            target_width: Target width (900)
-            target_height: Target height (700)
-            fill_mode: 'cover' (fill screen, crop excess) or 'contain' (fit inside, show borders)
-        
-        Returns:
-            Scaled pygame Surface
-        """
+        """Scale image maintaining aspect ratio."""
         img = pygame.image.load(image_path)
         img_width, img_height = img.get_size()
         
-        # Calculate aspect ratios
         img_aspect = img_width / img_height
         target_aspect = target_width / target_height
         
         if fill_mode == 'cover':
-            # Fill entire screen (crop if necessary)
             if img_aspect > target_aspect:
-                # Image is wider - scale by height
                 scale_height = target_height
                 scale_width = int(scale_height * img_aspect)
             else:
-                # Image is taller - scale by width
                 scale_width = target_width
                 scale_height = int(scale_width / img_aspect)
             
-            # Scale the image
             scaled_img = pygame.transform.scale(img, (scale_width, scale_height))
             
-            # Create final surface and center the image
             final_surface = pygame.Surface((target_width, target_height))
             
-            # Calculate position to center
             x_offset = (target_width - scale_width) // 2
             y_offset = (target_height - scale_height) // 2
             
@@ -546,24 +561,18 @@ class GameController:
             return final_surface
         
         else:  # 'contain' mode
-            # Fit inside screen (show borders if necessary)
             if img_aspect > target_aspect:
-                # Image is wider - scale by width
                 scale_width = target_width
                 scale_height = int(scale_width / img_aspect)
             else:
-                # Image is taller - scale by height
                 scale_height = target_height
                 scale_width = int(scale_height * img_aspect)
             
-            # Scale the image
             scaled_img = pygame.transform.scale(img, (scale_width, scale_height))
             
-            # Create final surface with black background
             final_surface = pygame.Surface((target_width, target_height))
-            final_surface.fill((0, 0, 0))  # Black borders
+            final_surface.fill((0, 0, 0))
             
-            # Calculate position to center
             x_offset = (target_width - scale_width) // 2
             y_offset = (target_height - scale_height) // 2
             
