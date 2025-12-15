@@ -306,12 +306,100 @@ def draw_game_screen(controller, clicked_events_occur):
             "user_id": state["user_id"]
         })
     
+    # Game result overlay
+    if controller.state["match_over"]:
+        controller.screen.fill(WHITE)
+        draw_match_result_screen(controller, clicked_events_occur)
+    if controller.placing_ships:
+        # Nếu chưa kết thúc, và đang đặt tàu
+        draw_ship_placement_screen(controller, clicked_events_occur)
+        return
+    
     return enemy_board_rect
 
+def draw_match_result_screen(controller, click_event_occurred):
+    """Draws the match result overlay with ELO change and buttons."""
+    screen = controller.screen
+    state = controller.state
+    
+    font_large = controller.font_large
+    font_medium = controller.font_medium
+    font_small = controller.font_small
+    
+    overlay = pygame.Surface((900, 700), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 180)) 
+    screen.blit(overlay, (0, 0))
+    
+    box_width, box_height = 500, 300
+    box_x, box_y = (900 - box_width) // 2, (700 - box_height) // 2
+    
+    # Draw box background and border
+    pygame.draw.rect(screen, LIGHT_GRAY, (box_x, box_y, box_width, box_height), border_radius=15)
+    pygame.draw.rect(screen, BLACK, (box_x, box_y, box_width, box_height), 3, border_radius=15)
+
+    result = state.get("match_result", "draw")
+    new_elo = state.get("new_elo", 0)
+    
+    if result == "WIN":
+        result_text = "VICTORY!"
+        result_color = GREEN
+    elif result == "LOSE":
+        result_text = "DEFEAT!"
+        result_color = RED
+    else:
+        result_text = "DRAW"
+        result_color = YELLOW
+        
+    # Draw Title
+    title_surf = font_large.render(result_text, True, result_color)
+    title_rect = title_surf.get_rect(center=(900 // 2, box_y + 50))
+    screen.blit(title_surf, title_rect)
+    
+    match_tint = GREEN if controller.state["match_result"] == "WIN" else RED if controller.state["match_result"] == "LOSE" else YELLOW
+    elo_text = f"ELO: {new_elo}"
+    elo_color = match_tint
+    
+    # Draw ELO
+    elo_surf = font_medium.render(elo_text, True, elo_color)
+    elo_rect = elo_surf.get_rect(center=(900 // 2, box_y + 120))
+    screen.blit(elo_surf, elo_rect)
+    
+    btn_width, btn_height = 200, 50
+    btn_y = box_y + box_height - 70
+    spacing = 20
+    
+    # Return to Lobby
+    lobby_x = (900 // 2) - btn_width - (spacing // 2)
+    if draw_button(screen, font_small, lobby_x, btn_y, btn_width, btn_height, "RETURN TO LOBBY", GREEN, click_event_occurred):
+        controller.return_to_lobby()
+        
+    # Rematch
+    rematch_x = (900 // 2) + (spacing // 2)
+    if draw_button(screen, font_small, rematch_x, btn_y, btn_width, btn_height, "REMATCH", GRAY, click_event_occurred):
+        print("Rematch button clicked (not implemented)")
+        try:
+            controller.show_message("Rematch function is not implemented yet!", RED) 
+        except AttributeError:
+            pass
+    
 # --- EVENT HANDLERS ---
 
 def handle_game_events(event, controller):
     """Xử lý sự kiện cho màn hình đặt tàu và game chính."""
+    # update match result overlay
+    if controller.state["match_over"]:
+        if event.type == MOUSEBUTTONDOWN and event.button == 1:
+            pass
+        # Block other game events (like ship rotation/movement/attacks)
+        if event.type in [KEYDOWN, MOUSEMOTION]:
+            return
+        
+        # Block MOUSEBUTTONUP for board attacks/ship dropping
+        if event.type == MOUSEBUTTONUP and event.button == 1:
+            # Only return if the click was not on a button
+            return
+        
+        return
     
     # update timer
     controller.update_turn_timer()
@@ -420,3 +508,4 @@ def handle_game_events(event, controller):
                 
                 controller.dragging_ship = None
                 controller.drag_start_pos = None
+    
