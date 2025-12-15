@@ -253,7 +253,6 @@ class GameController:
         self.state["in_queue"] = False      
         self.state["in_custom_lobby"] = False
         self.state["in_leaderboard"] = False
-        self.state["in_game"] = False
         self.placing_ships = False
         self.ships_confirmed = False # Reset for next match
         self.state["match_over"] = True
@@ -451,7 +450,7 @@ class GameController:
         if self.state["in_custom_lobby"]:
             if self.state["is_host"]:
                 send_json(self.sock, {"type": "ROOM_CLOSE_REQ", "code": self.state["lobby_code"]})
-        
+    
         self.state["in_game"] = False
         self.state["match_over"] = False
         self.state["my_turn"] = False
@@ -463,7 +462,7 @@ class GameController:
         self.state["enemy_board"] = [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
         self.state["match_result"] = None
         self.state["new_elo"] = 0
-        
+        self.state["in_game_over"] = False
         self.state["in_custom_lobby"] = False
         self.state["is_host"] = False
         self.state["lobby_code"] = ""
@@ -553,6 +552,12 @@ class GameController:
             self.in_game_bg_img = self.scale_image_with_aspect_ratio(in_game_bg_path, 1200, 700)
         except Exception as e:
             print(f"ERROR: Cannot load in game background from {in_game_bg_path}. Error: {e}")
+        
+        in_game_over_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-6.jpg")
+        try:
+            self.in_game_over_bg_img = self.scale_image_with_aspect_ratio(in_game_over_bg_path, 1200, 700)
+        except Exception as e:
+            print(f"ERROR: Cannot load in game background from {in_game_over_bg_path}. Error: {e}")
     
     def scale_image_with_aspect_ratio(self, image_path, target_width, target_height, fill_mode='cover'):
         """Scale image maintaining aspect ratio."""

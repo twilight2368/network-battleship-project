@@ -4,7 +4,7 @@ import pygame
 from pygame.locals import *
 
 # Import từ components và network
-from src.components.gui_elements import BOARD_SIZE, CELL_SIZE, WHITE, BLACK, RED, GREEN, YELLOW, GRAY, LIGHT_GRAY, draw_button
+from src.components.gui_elements import BOARD_SIZE, CELL_SIZE, ORANGE, WHITE, BLACK, RED, GREEN, YELLOW, GRAY, LIGHT_GRAY, draw_button
 from src.network.networking import send_json
 
 # --- DRAWING LOGIC ---
@@ -260,6 +260,19 @@ def draw_ship_placement_screen(controller, clicked_events_occur):
                "SHIPS CONFIRMED", GRAY, False)    
 
 def draw_game_screen(controller, clicked_events_occur):
+    
+    """Vẽ màn hình game over."""
+    # Game result overlay
+    if controller.state["match_over"]:
+        controller.screen.fill(WHITE)
+        draw_match_result_screen(controller, clicked_events_occur)
+        return
+    """Vẽ màn hình đặt tàu."""
+    if controller.placing_ships:
+        # Nếu chưa kết thúc, và đang đặt tàu
+        draw_ship_placement_screen(controller, clicked_events_occur)
+        return
+    
     """Vẽ màn hình game chính."""
     screen = controller.screen
     state = controller.state
@@ -314,80 +327,61 @@ def draw_game_screen(controller, clicked_events_occur):
             "user_id": state["user_id"]
         })
     
-    # Game result overlay
-    if controller.state["match_over"]:
-        controller.screen.fill(WHITE)
-        draw_match_result_screen(controller, clicked_events_occur)
-    if controller.placing_ships:
-        # Nếu chưa kết thúc, và đang đặt tàu
-        draw_ship_placement_screen(controller, clicked_events_occur)
-        return
-    
     return enemy_board_rect
 
-def draw_match_result_screen(controller, click_event_occurred):
-    """Draws the match result overlay with ELO change and buttons."""
-    screen = controller.screen
-    state = controller.state
+def draw_match_result_screen(controller, click_event_occurred): 
+    """Draws the match result overlay with ELO change and buttons.""" 
+    screen = controller.screen 
+    state = controller.state 
+     
+    font_large = controller.font_large 
+    font_medium = controller.font_medium 
+    font_small = controller.font_small 
+     
+    # Background
+    if hasattr(controller, 'in_game_over_bg_img') and controller.in_game_over_bg_img: 
+        screen.blit(controller.in_game_over_bg_img, (0, 0)) 
+    else: 
+        screen.fill(WHITE) 
+     
+    result = state.get("match_result", "draw") 
+    new_elo = state.get("new_elo", 0) 
+     
+    if result == "WIN": 
+        result_text = "VICTORY!" 
+        result_color = GREEN 
+    elif result == "LOSE": 
+        result_text = "DEFEAT!" 
+        result_color = RED 
+    else: 
+        result_text = "DRAW" 
+        result_color = YELLOW 
+         
+    # Main result text - centered
+    title_surf = font_large.render(result_text, True, result_color) 
+    title_rect = title_surf.get_rect(center=(600, 250)) 
+    screen.blit(title_surf, title_rect) 
+     
+    # ELO text - centered below result
+    elo_text = f"New ELO: {new_elo}" 
+    elo_surf = font_medium.render(elo_text, True, result_color) 
+    elo_rect = elo_surf.get_rect(center=(600, 320)) 
+    screen.blit(elo_surf, elo_rect) 
+     
+    # Buttons - centered and stacked vertically
+    btn_width, btn_height = 300, 50 
+    btn_x = (1200 - btn_width) // 2
     
-    font_large = controller.font_large
-    font_medium = controller.font_medium
-    font_small = controller.font_small
-    
-    overlay = pygame.Surface((900, 700), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 180)) 
-    screen.blit(overlay, (0, 0))
-    
-    box_width, box_height = 500, 300
-    box_x, box_y = (900 - box_width) // 2, (700 - box_height) // 2
-    
-    # Draw box background and border
-    pygame.draw.rect(screen, LIGHT_GRAY, (box_x, box_y, box_width, box_height), border_radius=15)
-    pygame.draw.rect(screen, BLACK, (box_x, box_y, box_width, box_height), 3, border_radius=15)
-
-    result = state.get("match_result", "draw")
-    new_elo = state.get("new_elo", 0)
-    
-    if result == "WIN":
-        result_text = "VICTORY!"
-        result_color = GREEN
-    elif result == "LOSE":
-        result_text = "DEFEAT!"
-        result_color = RED
-    else:
-        result_text = "DRAW"
-        result_color = YELLOW
-        
-    # Draw Title
-    title_surf = font_large.render(result_text, True, result_color)
-    title_rect = title_surf.get_rect(center=(900 // 2, box_y + 50))
-    screen.blit(title_surf, title_rect)
-    
-    match_tint = GREEN if controller.state["match_result"] == "WIN" else RED if controller.state["match_result"] == "LOSE" else YELLOW
-    elo_text = f"ELO: {new_elo}"
-    elo_color = match_tint
-    
-    # Draw ELO
-    elo_surf = font_medium.render(elo_text, True, elo_color)
-    elo_rect = elo_surf.get_rect(center=(900 // 2, box_y + 120))
-    screen.blit(elo_surf, elo_rect)
-    
-    btn_width, btn_height = 200, 50
-    btn_y = box_y + box_height - 70
-    spacing = 20
-    
-    # Return to Lobby
-    lobby_x = (900 // 2) - btn_width - (spacing // 2)
-    if draw_button(screen, font_small, lobby_x, btn_y, btn_width, btn_height, "RETURN TO LOBBY", GREEN, click_event_occurred):
-        controller.return_to_lobby()
-        
-    # Rematch
-    rematch_x = (900 // 2) + (spacing // 2)
-    if draw_button(screen, font_small, rematch_x, btn_y, btn_width, btn_height, "REMATCH", GRAY, click_event_occurred):
-        print("Rematch button clicked (not implemented)")
-        try:
-            controller.show_message("Rematch function is not implemented yet!", RED) 
-        except AttributeError:
+    # Return to Lobby button
+    if draw_button(screen, font_small, btn_x, 400, btn_width, btn_height, "RETURN TO LOBBY", ORANGE, click_event_occurred): 
+        controller.return_to_lobby() 
+         
+    # Rematch button
+    if draw_button(screen, font_small, btn_x, 470, btn_width, btn_height, "REMATCH", GRAY, click_event_occurred): 
+        print("Rematch button clicked (not implemented)") 
+        try: 
+            controller.show_message("Rematch is not implemented yet!")  
+        except AttributeError: 
             pass
     
 # --- EVENT HANDLERS ---
