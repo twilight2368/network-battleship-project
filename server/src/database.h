@@ -48,9 +48,10 @@ int db_create_tables(Database *database);
 int db_create_user(Database *database, const char *username, const char *password_hash);
 User db_get_user(Database *database, const char *username); // Return full User struct
 int db_update_user_elo(Database *database, const char *username, int new_elo);
+int db_update_user_win_lose(Database *database, const char *username, int new_win, int new_lose);
 int db_delete_user(Database *database, const char *username);
-User *db_get_all_users(Database *database, int *count); // Return array of users
-
+User *db_get_all_users(Database *database, int *count);        // Return array of users
+User *db_get_top_users_by_elo(Database *database, int *count); // Return array of users
 //* ================== MATCHES ==================
 int db_create_match(Database *database, const char *player1, const char *player2);
 Match db_get_match(Database *database, int match_id); // Return full Match struct
