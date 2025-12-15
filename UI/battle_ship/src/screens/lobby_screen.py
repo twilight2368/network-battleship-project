@@ -22,9 +22,9 @@ def draw_host_screen(controller, click_event_occurred):
 
     # Hiển thị mã phòng
     code_label = controller.font_medium.render("Room Code:", True, BLACK)
-    screen.blit(code_label, (300, 150))
+    screen.blit(code_label, (450, 150))
     code_text = controller.font_large.render(state['lobby_code'], True, BLUE)
-    screen.blit(code_text, (300, 190))
+    screen.blit(code_text, (450, 190))
     
     # Thông báo chờ
     if not state.get("opponent_joined"): 
@@ -34,11 +34,11 @@ def draw_host_screen(controller, click_event_occurred):
         wait_text = controller.font_medium.render("Opponent found! Starting game...", True, GREEN)
        
         
-    wait_rect = wait_text.get_rect(center=(450, 300))
+    wait_rect = wait_text.get_rect(center=(600, 300))
     screen.blit(wait_text, wait_rect)
 
     # Nút quay lại
-    if draw_button(screen, controller.font_small, 300, 450, 300, 50, "RETURN TO LOBBY", event_click=click_event_occurred):
+    if draw_button(screen, controller.font_small, 450, 450, 300, 50, "RETURN TO LOBBY", event_click=click_event_occurred):
         if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_small, "Close lobby and return?"):
             controller.return_to_lobby()
             
@@ -59,10 +59,10 @@ def draw_join_screen(controller, click_event_occurred):
     input_active = controller.input_mode == "join_lobby_code"
 
     # Input box
-    draw_input_box(screen, controller.font_small, 300, 250, 300, 50, input_active, input_text, placeholder="Enter room code...")
+    draw_input_box(screen, controller.font_small, 450, 250, 300, 50, input_active, input_text, placeholder="Enter room code...")
     
     # Nút JOIN LOBBY (Enter)
-    if draw_button(screen, controller.font_small, 300, 320, 300, 50, "JOIN LOBBY", event_click=click_event_occurred):
+    if draw_button(screen, controller.font_small, 450, 320, 300, 50, "JOIN LOBBY", event_click=click_event_occurred):
         if len(controller.input_text) > 0:
             # Gửi yêu cầu join với mã nhập vào
             send_json(controller.sock, {"type": "JOIN_ROOM_REQ", "code": controller.input_text})
@@ -73,7 +73,7 @@ def draw_join_screen(controller, click_event_occurred):
             controller.show_message("Please enter a lobby code.")
             
     # Nút quay lại
-    if draw_button(screen, controller.font_small, 300, 450, 300, 50, "RETURN TO LOBBY", event_click=click_event_occurred):
+    if draw_button(screen, controller.font_small, 450, 450, 300, 50, "RETURN TO LOBBY", event_click=click_event_occurred):
         controller.return_to_lobby()
 
 def handle_join_lobby_events(event, controller):
@@ -132,10 +132,10 @@ def draw_lobby_screen(controller, click_event_occurred):
             screen.fill(WHITE)
         
         queue_text = controller.font_large.render("Waiting for opponent...", True, ORANGE)
-        text_rect = queue_text.get_rect(center=(450, 300))
+        text_rect = queue_text.get_rect(center=(600, 300))
         screen.blit(queue_text, text_rect)
             
-        if draw_button(screen, controller.font_small, 300, 400, 300, 50, "EXIT QUEUE", event_click=click_event_occurred):
+        if draw_button(screen, controller.font_small, 450, 400, 300, 50, "EXIT QUEUE", event_click=click_event_occurred):
             if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_small, "Exit matchmaking queue?"):
                 send_json(controller.sock, {"type": "QUEUE_EXIT_REQ"})
                 controller.show_message("Exited queue.")
@@ -143,25 +143,25 @@ def draw_lobby_screen(controller, click_event_occurred):
     # 3. Xử lý màn hình Lobby chính (Không Queue, không Custom Lobby)
     else:
         # ENTER QUEUE (Auto Matchmaking)
-        if draw_button(screen, controller.font_small, 300, 180, 300, 50, "ENTER QUEUE", event_click=click_event_occurred):
+        if draw_button(screen, controller.font_small, 450, 180, 300, 50, "ENTER QUEUE", event_click=click_event_occurred):
             send_json(controller.sock, {"type": "QUEUE_ENTER_REQ"})
             controller.show_message("Requesting to enter queue...")
             #controller.start_ship_placement()
         
         # JOIN LOBBY (CUSTOM)
-        if draw_button(screen, controller.font_small, 300, 250, 300, 50, "JOIN LOBBY", event_click=click_event_occurred):
+        if draw_button(screen, controller.font_small, 450, 250, 300, 50, "JOIN LOBBY", event_click=click_event_occurred):
             controller.join_lobby_mode()
             
         # HOST LOBBY (CUSTOM)
-        if draw_button(screen, controller.font_small, 300, 320, 300, 50, "HOST LOBBY", event_click=click_event_occurred):
+        if draw_button(screen, controller.font_small, 450, 320, 300, 50, "HOST LOBBY", event_click=click_event_occurred):
             controller.host_lobby_mode()
             
         # LEADERBOARD (CUSTOM)
-        if draw_button(screen, controller.font_small, 300, 390, 300, 50, "LEADERBOARD", event_click=click_event_occurred):
+        if draw_button(screen, controller.font_small, 450, 390, 300, 50, "LEADERBOARD", event_click=click_event_occurred):
             controller.show_leaderboard()
         
         # LOGOUT (Vị trí mới: 460)
-        if draw_button(screen, controller.font_small, 300,460, 300, 50, "LOGOUT", event_click=click_event_occurred):
+        if draw_button(screen, controller.font_small, 450, 460, 300, 50, "LOGOUT", event_click=click_event_occurred):
             if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_small, "Are you sure you want to logout?"):
                 send_json(controller.sock, {"type": "LOGOUT"})
                 state["is_login"] = False
@@ -186,18 +186,18 @@ def draw_leaderboard_screen(controller, click_event_occurred):
     
     # Title
     title = controller.font_large.render("LEADERBOARD", True, BLACK)
-    title_rect = title.get_rect(center=(450, 50))
+    title_rect = title.get_rect(center=(600, 50))
     screen.blit(title, title_rect)
     
     # Table headers
     headers = ["Rank", "Username", "ELO", "Wins", "Losses", "W/L Ratio"]
-    header_x_positions = [150, 280, 430, 550, 660, 770]
+    header_x_positions = [250, 400, 570, 700, 820, 920]
     
     y_start = 120
     header_y = y_start
     
     # Draw header background
-    pygame.draw.rect(screen, BLUE, (130, header_y - 5, 720, 40))
+    pygame.draw.rect(screen, BLUE, (230, header_y - 5, 780, 40))
     
     # Draw headers
     for i, header in enumerate(headers):
@@ -207,7 +207,7 @@ def draw_leaderboard_screen(controller, click_event_occurred):
     # Create scrollable area
     scroll_area_y = header_y + 50
     scroll_area_height = 380  # Height of visible scroll area
-    scroll_area_rect = pygame.Rect(130, scroll_area_y, 720, scroll_area_height)
+    scroll_area_rect = pygame.Rect(230, scroll_area_y, 780, scroll_area_height)
     
     # Create a surface for the scrollable content
     leaderboard = state.get("leaderboard", [])
@@ -230,9 +230,9 @@ def draw_leaderboard_screen(controller, click_event_occurred):
         if row_y + row_height >= scroll_area_y and row_y < scroll_area_y + scroll_area_height:
             # Alternate row colors
             if entry["rank"] % 2 == 0:
-                pygame.draw.rect(screen, (240, 240, 240), (130, row_y - 5, 720, 40))
+                pygame.draw.rect(screen, (240, 240, 240), (230, row_y - 5, 780, 40))
             else:
-                pygame.draw.rect(screen, (255, 255, 255), (130, row_y - 5, 720, 40))
+                pygame.draw.rect(screen, (255, 255, 255), (230, row_y - 5, 780, 40))
             
             # Calculate W/L ratio
             total_games = entry["wins"] + entry["losses"]
@@ -266,7 +266,7 @@ def draw_leaderboard_screen(controller, click_event_occurred):
     
     # Draw scrollbar if needed
     if total_content_height > scroll_area_height:
-        scrollbar_x = 860
+        scrollbar_x = 1020
         scrollbar_y = scroll_area_y
         scrollbar_width = 15
         scrollbar_height = scroll_area_height
@@ -280,7 +280,7 @@ def draw_leaderboard_screen(controller, click_event_occurred):
         pygame.draw.rect(screen, BLUE, (scrollbar_x, thumb_y, scrollbar_width, thumb_height))
     
     # Back button
-    if draw_button(screen, controller.font_small, 300, 560, 300, 50, "BACK TO LOBBY", event_click=click_event_occurred):
+    if draw_button(screen, controller.font_small, 450, 560, 300, 50, "BACK TO LOBBY", event_click=click_event_occurred):
         controller.leaderboard_scroll_offset = 0  # Reset scroll
         controller.return_to_lobby()
 

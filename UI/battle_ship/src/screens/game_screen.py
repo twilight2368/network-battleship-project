@@ -57,8 +57,20 @@ def draw_board(controller, x_offset, y_offset, board, show_ships=True, color_num
 def draw_ship_item(screen, font_small, x, y, ship_name, size, orientation, is_placed, is_dragging=False, ship_images=None):
     """Vẽ một item tàu trong danh sách bên trái - LUÔN VERTICAL"""
     # LUÔN VẼ VERTICAL CHO DANH SÁCH (bỏ qua orientation)
-    width = 50
-    height = size * 18 + 10
+    
+    # Get actual ship image dimensions if available
+    if ship_images and ship_name in ship_images:
+        ship_img = ship_images[ship_name]["vertical"]
+        img_width = ship_img.get_width()
+        img_height = ship_img.get_height()
+        
+        # Add padding around the ship
+        width = img_width + 10
+        height = img_height + 10
+    else:
+        # Fallback dimensions if no image
+        width = 50
+        height = size * 18 + 10
     
     # Nền tàu
     if is_placed:
@@ -74,18 +86,14 @@ def draw_ship_item(screen, font_small, x, y, ship_name, size, orientation, is_pl
     pygame.draw.rect(ship_surface, BLACK, (0, 0, width, height), 2)
     screen.blit(ship_surface, (x, y))
     
-    # Vẽ hình tàu nếu có - LUÔN VERTICAL
+    # Vẽ hình tàu nếu có - LUÔN VERTICAL (NO SCALING)
     if ship_images and ship_name in ship_images:
-        ship_img = ship_images[ship_name]["vertical"]  # LUÔN DÙNG VERTICAL
+        ship_img = ship_images[ship_name]["vertical"]
         
-        # Scale để vừa với box
-        img_width = 35
-        img_height = size * 18
-        
-        scaled_img = pygame.transform.scale(ship_img, (img_width, img_height))
-        img_x = x + (width - img_width) // 2
-        img_y = y + (height - img_height) // 2
-        screen.blit(scaled_img, (img_x, img_y))
+        # Center the ship in the box
+        img_x = x + (width - ship_img.get_width()) // 2
+        img_y = y + (height - ship_img.get_height()) // 2
+        screen.blit(ship_img, (img_x, img_y))
     
     return pygame.Rect(x, y, width, height)
 
@@ -101,7 +109,7 @@ def draw_ship_placement_screen(controller, clicked_events_occur):
         screen.fill(WHITE)
     
     # Semi-transparent overlay for better text visibility
-    overlay = pygame.Surface((900, 700))
+    overlay = pygame.Surface((1200, 700))
     overlay.set_alpha(100)
     overlay.fill(WHITE)
     screen.blit(overlay, (0, 0))
@@ -138,8 +146,8 @@ def draw_ship_placement_screen(controller, clicked_events_occur):
         
         is_dragging = (controller.dragging_ship == ship_name)
         
-        # Chia 2 cột: 3 tàu đầu cột 1, 2 tàu sau cột 2
-        if i < 3:  # Column 1
+        # Chia 2 cột: 2 tàu đầu cột 1, 3 tàu sau cột 2
+        if i < 2:  # Column 1
             x_pos = ship_list_x1
             y_pos = ship_list_y + col1_y_offset
         else:  # Column 2
@@ -157,7 +165,7 @@ def draw_ship_placement_screen(controller, clicked_events_occur):
         controller.ship_rects[ship_name] = rect
         
         # Cộng thêm khoảng cách cho tàu tiếp theo (LUÔN DÙNG CHIỀU CAO VERTICAL)
-        if i < 3:
+        if i < 2:
             col1_y_offset += rect.height + 25
         else:
             col2_y_offset += rect.height + 25

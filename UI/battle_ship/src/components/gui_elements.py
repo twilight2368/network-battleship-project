@@ -6,7 +6,7 @@ from pygame.locals import MOUSEBUTTONDOWN, QUIT
 # Game/Board Constants
 BOARD_SIZE = 10
 CELL_SIZE = 30
-
+SIZE_WINDOW = (1200, 700)
 # Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -67,7 +67,7 @@ def show_confirm_dialog(screen, clock, font_small, font_medium, text):
     """Hiển thị dialog xác nhận. Trả về True nếu chọn Yes."""
     dialog_width = 400
     dialog_height = 200
-    x = (900 - dialog_width) // 2
+    x = (1200 - dialog_width) // 2
     y = (700 - dialog_height) // 2
 
     while True:
@@ -83,7 +83,7 @@ def show_confirm_dialog(screen, clock, font_small, font_medium, text):
         
         
         # ... (Phần vẽ dialog giữ nguyên như trong file gốc)
-        overlay = pygame.Surface((900, 700))
+        overlay = pygame.Surface((1200, 700))
         overlay.set_alpha(10)
         overlay.fill((105,105,105))
         screen.blit(overlay, (0, 0))

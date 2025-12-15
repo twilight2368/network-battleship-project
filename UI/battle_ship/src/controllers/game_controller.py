@@ -65,7 +65,7 @@ class GameController:
         # Pygame & Network Setup
         self.screen = None
         self.clock = None
-        self.font_large, self.font_medium, self.font_small = None, None, None
+        self.font_large, self.font_medium, self.font_small, self.font_supersmall = None, None, None, None
         self.sock = None
         self.host = host
         self.port = port
@@ -231,6 +231,7 @@ class GameController:
                 self.show_message("Success to get leaderboard")
             else:
                 self.show_message("Failed to get leaderboard")
+    
     def show_message(self, text):
         """Hiển thị tin nhắn tạm thời."""
         self.message = text
@@ -481,31 +482,31 @@ class GameController:
         # 3. Load background images
         login_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-1.jpg")
         try:
-            self.login_bg_img = self.scale_image_with_aspect_ratio(login_bg_path, 900, 700)
+            self.login_bg_img = self.scale_image_with_aspect_ratio(login_bg_path, 1200, 700)
         except Exception as e:
             print(f"ERROR: Cannot load login background from {login_bg_path}. Error: {e}")
         
         lobby_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-2.jpg")
         try:
-            self.lobby_bg_img = self.scale_image_with_aspect_ratio(lobby_bg_path, 900, 700)
+            self.lobby_bg_img = self.scale_image_with_aspect_ratio(lobby_bg_path, 1200, 700)
         except Exception as e:
             print(f"ERROR: Cannot load lobby background from {lobby_bg_path}. Error: {e}")
         
         in_queue_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-4.jpg")
         try:
-            self.in_queue_bg_img = self.scale_image_with_aspect_ratio(in_queue_bg_path, 900, 700)
+            self.in_queue_bg_img = self.scale_image_with_aspect_ratio(in_queue_bg_path, 1200, 700)
         except Exception as e:
             print(f"ERROR: Cannot load in queue background from {in_queue_bg_path}. Error: {e}")
         
         room_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-5.jpg")
         try:
-            self.room_bg_img = self.scale_image_with_aspect_ratio(room_bg_path, 900, 700)
+            self.room_bg_img = self.scale_image_with_aspect_ratio(room_bg_path, 1200, 700)
         except Exception as e:
             print(f"ERROR: Cannot load room background from {room_bg_path}. Error: {e}")
             
         in_game_bg_path = os.path.join(PROJECT_ROOT, "images", "lobby-bg-3.jpg")
         try:
-            self.in_game_bg_img = self.scale_image_with_aspect_ratio(in_game_bg_path, 900, 700)
+            self.in_game_bg_img = self.scale_image_with_aspect_ratio(in_game_bg_path, 1200, 700)
         except Exception as e:
             print(f"ERROR: Cannot load in game background from {in_game_bg_path}. Error: {e}")
             

@@ -12,14 +12,14 @@ from src.controllers.game_controller import GameController
 from src.screens.login_screen import draw_login_screen, handle_login_events
 from src.screens.lobby_screen import draw_lobby_screen, handle_join_lobby_events, handle_leaderboard_scroll
 from src.screens.game_screen import draw_ship_placement_screen, draw_game_screen, handle_game_events
-from src.components.gui_elements import WHITE, BLACK, RED
+from src.components.gui_elements import SIZE_WINDOW, WHITE, BLACK, RED
 from src.network.networking import DEFAULT_HOST, DEFAULT_PORT
 
 
 def run_game(controller):
     """Vòng lặp game chính."""
     pygame.init()
-    controller.screen = pygame.display.set_mode((900, 700))
+    controller.screen = pygame.display.set_mode(SIZE_WINDOW)
     pygame.display.set_caption("Battleship Game")
     controller.clock = pygame.time.Clock()
     
@@ -27,7 +27,7 @@ def run_game(controller):
     controller.font_large = pygame.font.SysFont("stencil", 48)
     controller.font_medium = pygame.font.SysFont("impact", 32)
     controller.font_small = pygame.font.SysFont("agencyfb", 24)
-    
+    controller.font_supersmall = pygame.font.SysFont("consolas", 14)
     # Load assets
     controller.load_images()
     
@@ -72,7 +72,7 @@ def run_game(controller):
         # 3. Draw Global Message
         if controller.message and pygame.time.get_ticks() < controller.message_timer:
             msg_surf = controller.font_small.render(controller.message, True, RED)
-            msg_rect = msg_surf.get_rect(center=(450, 650))
+            msg_rect = msg_surf.get_rect(center=(600, 650))
             # Draw background box for message
             pygame.draw.rect(controller.screen, WHITE, (msg_rect.x - 5, msg_rect.y - 5, 
                                                   msg_rect.width + 10, msg_rect.height + 10))
