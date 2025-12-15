@@ -33,8 +33,14 @@ class GameController:
             "opponent_joined": False,
             "in_leaderboard": False,
             
-            #Other
+            # Leaderboard data
             "leaderboard": [],
+            
+            # Match result
+            "match_over": False,
+            "match_result": None, # "win", "lose", "draw"
+            "new_elo": 0,
+            
         }
         self.show_password = False
         
@@ -79,6 +85,8 @@ class GameController:
         self.turn_time_limit = 30000  # 30 seconds per turn
         self.turn_start_time = 0
         self.remaining_time = self.turn_time_limit
+        
+        
         
     ### Server Connection Methods ###
     
@@ -157,7 +165,6 @@ class GameController:
             
             self.show_message(f"Match found! Opponent: {self.state['enemy_name']}")
             self.start_ship_placement()
-        
         elif t == "PLACE_SHIP_RES":
             if msg.get("result", 0) == 1:
                 self.show_message("Ships placed! Ready for match...")
@@ -197,12 +204,10 @@ class GameController:
                 self.show_message("GAME OVER!")
         
         elif t == "MATCH_RESULT":
-            self.show_message(f"You {msg['result']}! New ELO: {msg['new_elo']}")
-            self.state["in_game"] = False
-            self.state["my_turn"] = False
-            self.state["match_id"] = 0
-            self.state["enemy_name"] = ""
-            self.state["in_custom_lobby"] = False
+            match_id = msg.get("match_id", 0)
+            result = msg.get("result", "draw")
+            new_elo = msg.get("new_elo", 0)
+            self.handle_match_result(match_id, result, new_elo)
         
         elif t == "LOGIN_RES":
             if msg.get("result", 0) == 0:
@@ -238,6 +243,23 @@ class GameController:
         self.message_timer = pygame.time.get_ticks() + 3000
         print(f"Message: {text}")
 
+    ### Game Results Methods ###
+    
+    def handle_match_result(self, match_id, result, new_elo):
+        """Xử lý tin nhắn MATCH_RESULT và cập nhật trạng thái."""
+        print(f"Match {match_id} ended. Result: {result}, new ELO: {new_elo}")
+        
+        self.state["is_login"] = True       
+        self.state["in_queue"] = False      
+        self.state["in_custom_lobby"] = False
+        self.state["in_leaderboard"] = False
+        self.state["in_game"] = False
+        self.placing_ships = False
+        self.ships_confirmed = False # Reset for next match
+        self.state["match_over"] = True
+        self.state["match_result"] = result
+        self.state["new_elo"] = new_elo
+    
     ### Ship Placement Methods ###
     
     def start_ship_placement(self):
@@ -429,7 +451,19 @@ class GameController:
         if self.state["in_custom_lobby"]:
             if self.state["is_host"]:
                 send_json(self.sock, {"type": "ROOM_CLOSE_REQ", "code": self.state["lobby_code"]})
-            
+        
+        self.state["in_game"] = False
+        self.state["match_over"] = False
+        self.state["my_turn"] = False
+        
+        #Reset match data
+        self.state["match_id"] = 0
+        self.state["enemy_name"] = ""
+        self.state["my_board"] = [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+        self.state["enemy_board"] = [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)]
+        self.state["match_result"] = None
+        self.state["new_elo"] = 0
+        
         self.state["in_custom_lobby"] = False
         self.state["is_host"] = False
         self.state["lobby_code"] = ""
@@ -438,12 +472,22 @@ class GameController:
         self.input_mode = None
         self.input_active = False
         self.input_text = ""
+        
+        # Reset ship placement data
+        try:
+            from src.components.gui_elements import SHIP_SIZES 
+            self.ship_orientations = {ship: 0 for ship in SHIP_SIZES.keys()}
+            self.dragging_ship = None
+            self.drag_offset = (0, 0)
+        except AttributeError:
+            pass
+        
         self.show_message("Returned to lobby.")
-    
     
     def show_leaderboard(self):
         self.state["in_leaderboard"] = True
         send_json(self.sock, {"type": "LEADERBOARD_REQ"})
+        
     ### Image Loading ###
     
     def load_images(self):
@@ -509,49 +553,7 @@ class GameController:
             self.in_game_bg_img = self.scale_image_with_aspect_ratio(in_game_bg_path, 1200, 700)
         except Exception as e:
             print(f"ERROR: Cannot load in game background from {in_game_bg_path}. Error: {e}")
-            
-    ### Timer Methods ###
     
-    def reset_turn_timer(self):
-        self.turn_start_time = pygame.time.get_ticks()
-        self.remaining_time = self.turn_time_limit
-        
-    def update_turn_timer(self):
-        if self.state["in_game"] and self.state["my_turn"]:
-            elapsed_time = pygame.time.get_ticks() - self.turn_start_time
-            if elapsed_time >= self.turn_time_limit:
-                self.perform_random_move()
-        
-    ### Random shooting handler ###
-    
-    def find_random_cell(self):
-        unhit_cells = []
-        for r in range(BOARD_SIZE):
-            for c in range(BOARD_SIZE):
-                if self.state["enemy_board"][r][c] == "~":
-                    unhit_cells.append((r, c))
-        if unhit_cells:
-            return random.choice(unhit_cells)
-        return None
-    
-    def perform_random_move(self):
-        if not self.state["in_game"] or not self.state["my_turn"]:
-            return
-        
-        target = self.find_random_cell()
-        if target:
-            row, col = target
-            self.show_message(f"TIME OUT! Auto-firing at ({row}, {col})")
-            
-            send_json(self.sock, {
-                "type": "MOVE_REQ",
-                "match_id": self.state["match_id"],
-                "user_id": self.state["user_id"],
-                "row": row,
-                "col": col
-            })
-            self.state["my_turn"] = False
-        
     def scale_image_with_aspect_ratio(self, image_path, target_width, target_height, fill_mode='cover'):
         """Scale image maintaining aspect ratio."""
         img = pygame.image.load(image_path)
@@ -596,3 +598,47 @@ class GameController:
             
             final_surface.blit(scaled_img, (x_offset, y_offset))
             return final_surface
+            
+    ### Timer Methods ###
+    
+    def reset_turn_timer(self):
+        self.turn_start_time = pygame.time.get_ticks()
+        self.remaining_time = self.turn_time_limit
+        
+    def update_turn_timer(self):
+        if self.state["in_game"] and self.state["my_turn"]:
+            elapsed_time = pygame.time.get_ticks() - self.turn_start_time
+            if elapsed_time >= self.turn_time_limit:
+                self.perform_random_move()
+        
+    ### Random shooting handler ###
+    
+    def find_random_cell(self):
+        unhit_cells = []
+        for r in range(BOARD_SIZE):
+            for c in range(BOARD_SIZE):
+                if self.state["enemy_board"][r][c] == "~":
+                    unhit_cells.append((r, c))
+        if unhit_cells:
+            return random.choice(unhit_cells)
+        return None
+    
+    def perform_random_move(self):
+        if not self.state["in_game"] or not self.state["my_turn"]:
+            return
+        
+        target = self.find_random_cell()
+        if target:
+            row, col = target
+            self.show_message(f"TIME OUT! Auto-firing at ({row}, {col})")
+            
+            send_json(self.sock, {
+                "type": "MOVE_REQ",
+                "match_id": self.state["match_id"],
+                "user_id": self.state["user_id"],
+                "row": row,
+                "col": col
+            })
+            self.state["my_turn"] = False
+        
+    
