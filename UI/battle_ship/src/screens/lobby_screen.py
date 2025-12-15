@@ -174,6 +174,10 @@ def draw_leaderboard_screen(controller, click_event_occurred):
     screen = controller.screen
     state = controller.state
     
+    # Initialize scroll offset if not exists
+    if not hasattr(controller, 'leaderboard_scroll_offset'):
+        controller.leaderboard_scroll_offset = 0
+    
     # Background
     if hasattr(controller, 'lobby_bg_img') and controller.lobby_bg_img:
         screen.blit(controller.lobby_bg_img, (0, 0))
@@ -193,52 +197,103 @@ def draw_leaderboard_screen(controller, click_event_occurred):
     header_y = y_start
     
     # Draw header background
-    pygame.draw.rect(screen, BLUE, (130, header_y - 5, 640, 40))
+    pygame.draw.rect(screen, BLUE, (130, header_y - 5, 720, 40))
     
     # Draw headers
     for i, header in enumerate(headers):
         header_text = controller.font_small.render(header, True, WHITE)
         screen.blit(header_text, (header_x_positions[i], header_y))
     
-    # Draw leaderboard data
+    # Create scrollable area
+    scroll_area_y = header_y + 50
+    scroll_area_height = 380  # Height of visible scroll area
+    scroll_area_rect = pygame.Rect(130, scroll_area_y, 720, scroll_area_height)
+    
+    # Create a surface for the scrollable content
     leaderboard = state.get("leaderboard", [])
     row_height = 45
-    row_y = header_y + 50
+    total_content_height = len(leaderboard) * row_height
     
-    for entry in leaderboard[:10]:  # Show top 10
-        # Alternate row colors
-        if entry["rank"] % 2 == 0:
-            pygame.draw.rect(screen, (240, 240, 240), (130, row_y - 5, 640, 40))
-        else:
-            pygame.draw.rect(screen, (255, 255, 255), (130, row_y - 5, 640, 40))
-        
-        # Calculate W/L ratio
-        total_games = entry["wins"] + entry["losses"]
-        if total_games > 0:
-            wl_ratio = f"{(entry['wins'] / total_games * 100):.1f}%"
-        else:
-            wl_ratio = "N/A"
-        
-        # Highlight current user
-        color = GREEN if entry["username"] == state.get("username") else BLACK
-        
-        # Draw data
-        rank_text = controller.font_small.render(f"#{entry['rank']}", True, color)
-        username_text = controller.font_small.render(entry["username"], True, color)
-        elo_text = controller.font_small.render(str(entry["elo"]), True, color)
-        wins_text = controller.font_small.render(str(entry["wins"]), True, color)
-        losses_text = controller.font_small.render(str(entry["losses"]), True, color)
-        ratio_text = controller.font_small.render(wl_ratio, True, color)
-        
-        screen.blit(rank_text, (header_x_positions[0], row_y))
-        screen.blit(username_text, (header_x_positions[1], row_y))
-        screen.blit(elo_text, (header_x_positions[2], row_y))
-        screen.blit(wins_text, (header_x_positions[3], row_y))
-        screen.blit(losses_text, (header_x_positions[4], row_y))
-        screen.blit(ratio_text, (header_x_positions[5], row_y))
+    # Calculate max scroll offset
+    max_scroll = max(0, total_content_height - scroll_area_height)
+    controller.leaderboard_scroll_offset = max(0, min(controller.leaderboard_scroll_offset, max_scroll))
+    
+    # Create clipping rectangle for scrollable area
+    clip_rect = screen.get_clip()
+    screen.set_clip(scroll_area_rect)
+    
+    # Draw leaderboard data with scroll offset
+    row_y = scroll_area_y - controller.leaderboard_scroll_offset
+    
+    for entry in leaderboard:
+        # Only draw if row is visible in scroll area
+        if row_y + row_height >= scroll_area_y and row_y < scroll_area_y + scroll_area_height:
+            # Alternate row colors
+            if entry["rank"] % 2 == 0:
+                pygame.draw.rect(screen, (240, 240, 240), (130, row_y - 5, 720, 40))
+            else:
+                pygame.draw.rect(screen, (255, 255, 255), (130, row_y - 5, 720, 40))
+            
+            # Calculate W/L ratio
+            total_games = entry["wins"] + entry["losses"]
+            if total_games > 0:
+                wl_ratio = f"{(entry['wins'] / total_games * 100):.1f}%"
+            else:
+                wl_ratio = "N/A"
+            
+            # Highlight current user
+            color = GREEN if entry["username"] == state.get("username") else BLACK
+            
+            # Draw data
+            rank_text = controller.font_small.render(f"#{entry['rank']}", True, color)
+            username_text = controller.font_small.render(entry["username"], True, color)
+            elo_text = controller.font_small.render(str(entry["elo"]), True, color)
+            wins_text = controller.font_small.render(str(entry["wins"]), True, color)
+            losses_text = controller.font_small.render(str(entry["losses"]), True, color)
+            ratio_text = controller.font_small.render(wl_ratio, True, color)
+            
+            screen.blit(rank_text, (header_x_positions[0], row_y))
+            screen.blit(username_text, (header_x_positions[1], row_y))
+            screen.blit(elo_text, (header_x_positions[2], row_y))
+            screen.blit(wins_text, (header_x_positions[3], row_y))
+            screen.blit(losses_text, (header_x_positions[4], row_y))
+            screen.blit(ratio_text, (header_x_positions[5], row_y))
         
         row_y += row_height
     
+    # Restore clip
+    screen.set_clip(clip_rect)
+    
+    # Draw scrollbar if needed
+    if total_content_height > scroll_area_height:
+        scrollbar_x = 860
+        scrollbar_y = scroll_area_y
+        scrollbar_width = 15
+        scrollbar_height = scroll_area_height
+        
+        # Scrollbar background
+        pygame.draw.rect(screen, (200, 200, 200), (scrollbar_x, scrollbar_y, scrollbar_width, scrollbar_height))
+        
+        # Scrollbar thumb
+        thumb_height = max(30, int((scroll_area_height / total_content_height) * scrollbar_height))
+        thumb_y = scrollbar_y + int((controller.leaderboard_scroll_offset / max_scroll) * (scrollbar_height - thumb_height))
+        pygame.draw.rect(screen, BLUE, (scrollbar_x, thumb_y, scrollbar_width, thumb_height))
+    
     # Back button
-    if draw_button(screen, controller.font_small, 300, 550, 300, 50, "BACK TO LOBBY", event_click=click_event_occurred):
+    if draw_button(screen, controller.font_small, 300, 560, 300, 50, "BACK TO LOBBY", event_click=click_event_occurred):
+        controller.leaderboard_scroll_offset = 0  # Reset scroll
         controller.return_to_lobby()
+
+
+def handle_leaderboard_scroll(event, controller):
+    """Handle scroll events for leaderboard"""
+    if event.type == MOUSEBUTTONDOWN:
+        if event.button == 4:  # Scroll up
+            controller.leaderboard_scroll_offset = max(0, controller.leaderboard_scroll_offset - 45)
+        elif event.button == 5:  # Scroll down
+            leaderboard = controller.state.get("leaderboard", [])
+            row_height = 45
+            total_content_height = len(leaderboard) * row_height
+            scroll_area_height = 380
+            max_scroll = max(0, total_content_height - scroll_area_height)
+            controller.leaderboard_scroll_offset = min(max_scroll, controller.leaderboard_scroll_offset + 45)
