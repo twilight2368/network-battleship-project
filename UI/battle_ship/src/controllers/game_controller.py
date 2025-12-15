@@ -163,11 +163,12 @@ class GameController:
             self.placing_ships = False
             self.state["in_game"] = True
             
+            first_user_id = msg.get("first_turn", 0)
+            self.state["my_turn"] = (first_user_id == self.state["user_id"])
+            
             if self.state["my_turn"]:
                 self.reset_turn_timer()
             
-            first_user_id = msg.get("first_turn", 0)
-            self.state["my_turn"] = (first_user_id == self.state["user_id"])
             self.show_message("Match started!")
         
         elif t == "MOVE_RESULT":
