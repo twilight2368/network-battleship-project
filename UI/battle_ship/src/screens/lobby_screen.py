@@ -143,7 +143,7 @@ def draw_lobby_screen(controller, click_event_occurred):
     # 3. Xử lý màn hình Lobby chính (Không Queue, không Custom Lobby)
     else:
         # ENTER QUEUE (Auto Matchmaking)
-        if draw_button(screen, controller.font_small, 300, 250, 300, 50, "ENTER QUEUE", event_click=click_event_occurred):
+        if draw_button(screen, controller.font_small, 300, 180, 300, 50, "ENTER QUEUE", event_click=click_event_occurred):
             send_json(controller.sock, {"type": "QUEUE_ENTER_REQ"})
             controller.show_message("Requesting to enter queue...")
             #controller.start_ship_placement()
