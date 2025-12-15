@@ -42,6 +42,7 @@ class GameController:
         self.placed_ships = {}
         self.temp_ship_cells = []
         self.ship_sizes = SHIP_SIZES
+        self.ships_confirmed = False #updated
         
         # NEW: Drag & Drop support
         self.ship_orientations = {}  # Track orientation for each ship
@@ -156,6 +157,7 @@ class GameController:
         elif t == "PLACE_SHIP_RES":
             if msg.get("result", 0) == 1:
                 self.show_message("Ships placed! Ready for match...")
+                self.ships_confirmed = True #updated
             else:
                 self.show_message("Ships placed failed!")
            

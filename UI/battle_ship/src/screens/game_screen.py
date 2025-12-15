@@ -87,19 +87,6 @@ def draw_ship_item(screen, font_small, x, y, ship_name, size, orientation, is_pl
         img_y = y + (height - img_height) // 2
         screen.blit(scaled_img, (img_x, img_y))
     
-    # Tên tàu (rút gọn)
-    short_names = {
-        "carrier": "CAR",
-        "battleship": "BAT", 
-        "cruiser": "CRU",
-        "submarine": "SUB",
-        "destroyer": "DES"
-    }
-    name_text = font_small.render(short_names.get(ship_name, ship_name[:3].upper()), True, BLACK)
-    text_x = x + width // 2 - name_text.get_width() // 2
-    text_y = y + height + 3
-    screen.blit(name_text, (text_x, text_y))
-    
     return pygame.Rect(x, y, width, height)
 
 def draw_ship_placement_screen(controller, clicked_events_occur):
@@ -222,16 +209,24 @@ def draw_ship_placement_screen(controller, clicked_events_occur):
     all_placed = all(controller.placed_ships.get(ship) is not None for ship in controller.ships_to_place)
     
     # Random Place Button
-    if draw_button(screen, controller.font_small, 50, 120, 150, 35, 
-                  "Random Place", YELLOW, clicked_events_occur):
-        controller.random_place_ships()
+    if not controller.ships_confirmed:
+        if draw_button(screen, controller.font_small, 50, 120, 150, 35, 
+                    "Random Place", YELLOW, clicked_events_occur):
+            controller.random_place_ships()
+    else:
+        draw_button(screen, controller.font_small, 50, 120, 150, 35, 
+                "Random Place", GRAY, False)
+
+    # Clear All Button 
+    if not controller.ships_confirmed:
+        if draw_button(screen, controller.font_small, 220, 120, 120, 35,
+                    "Clear All", RED, clicked_events_occur):
+            controller.clear_all_ships()
+    else:
+        draw_button(screen, controller.font_small, 220, 120, 120, 35,
+                "Clear All", GRAY, False)
     
-    # Clear All Button
-    if draw_button(screen, controller.font_small, 220, 120, 120, 35,
-                  "Clear All", RED, clicked_events_occur):
-        controller.clear_all_ships()
-    
-    # Status text - ĐÚNG VỊ TRÍ
+    # Status text
     if all_placed:
         remaining_text = "All ships placed!"
         text_color = GREEN
@@ -246,11 +241,15 @@ def draw_ship_placement_screen(controller, clicked_events_occur):
     # Play Button (only enabled when all ships placed)
     play_color = GREEN if all_placed else GRAY
     play_text = "READY!" if all_placed else "PLAY (Place all ships)"
-    
-    if draw_button(screen, controller.font_small, 400, 510, 300, 50,
-                  play_text, play_color, clicked_events_occur and all_placed):
-        if all_placed:
-            controller.confirm_ship_placement()
+    # Updated to check controller.ships_confirmed
+    if not controller.ships_confirmed:
+        if draw_button(screen, controller.font_small, 400, 510, 300, 50,
+                    play_text, play_color, clicked_events_occur and all_placed):
+            if all_placed:
+                controller.confirm_ship_placement()
+    else:
+        draw_button(screen, controller.font_small, 400, 510, 300, 50,
+               "SHIPS CONFIRMED", GRAY, False)    
 
 def draw_game_screen(controller, clicked_events_occur):
     """Vẽ màn hình game chính."""
