@@ -90,7 +90,7 @@ User db_get_user(Database *database, const char *username)
 {
     User user = {0};
     sqlite3_stmt *stmt;
-    const char *sql = "SELECT id, username, elo, wins, losses FROM users WHERE username = ?;";
+    const char *sql = "SELECT id, username, password_hash, elo, wins, losses FROM users WHERE username = ?;";
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
         return user;
 
@@ -99,7 +99,13 @@ User db_get_user(Database *database, const char *username)
     if (sqlite3_step(stmt) == SQLITE_ROW)
     {
         user.id = sqlite3_column_int(stmt, 0);
-        snprintf(user.username, sizeof(user.username), "%s", sqlite3_column_text(stmt, 1));
+
+        snprintf(user.username, sizeof(user.username), "%s",
+                 (const char *)sqlite3_column_text(stmt, 1));
+
+        snprintf(user.password_hash, sizeof(user.password_hash), "%s",
+                 (const char *)sqlite3_column_text(stmt, 2));
+
         user.elo = sqlite3_column_int(stmt, 3);
         user.wins = sqlite3_column_int(stmt, 4);
         user.losses = sqlite3_column_int(stmt, 5);
