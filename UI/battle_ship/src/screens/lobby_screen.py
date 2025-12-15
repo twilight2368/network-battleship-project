@@ -108,7 +108,10 @@ def draw_lobby_screen(controller, click_event_occurred):
         else:
             draw_join_screen(controller, click_event_occurred)
         return
-
+    
+    if state["in_leaderboard"]:
+        draw_leaderboard_screen(controller, click_event_occurred)
+        return
     # 2. Xử lý màn hình Queue (Giữ nguyên)
     screen = controller.screen
     
@@ -123,7 +126,6 @@ def draw_lobby_screen(controller, click_event_occurred):
     screen.blit(title, (50, 50))
     
     if state["in_queue"]:
-        
         if hasattr(controller, 'in_queue_bg_img') and controller.in_queue_bg_img:
             screen.blit(controller.in_queue_bg_img, (0, 0))
         else:
@@ -147,18 +149,96 @@ def draw_lobby_screen(controller, click_event_occurred):
             #controller.start_ship_placement()
         
         # JOIN LOBBY (CUSTOM)
-        if draw_button(screen, controller.font_small, 300, 320, 300, 50, "JOIN LOBBY", event_click=click_event_occurred):
+        if draw_button(screen, controller.font_small, 300, 250, 300, 50, "JOIN LOBBY", event_click=click_event_occurred):
             controller.join_lobby_mode()
             
         # HOST LOBBY (CUSTOM)
-        if draw_button(screen, controller.font_small, 300, 390, 300, 50, "HOST LOBBY", event_click=click_event_occurred):
+        if draw_button(screen, controller.font_small, 300, 320, 300, 50, "HOST LOBBY", event_click=click_event_occurred):
             controller.host_lobby_mode()
+            
+        # LEADERBOARD (CUSTOM)
+        if draw_button(screen, controller.font_small, 300, 390, 300, 50, "LEADERBOARD", event_click=click_event_occurred):
+            controller.show_leaderboard()
         
         # LOGOUT (Vị trí mới: 460)
-        if draw_button(screen, controller.font_small, 300, 460, 300, 50, "LOGOUT", event_click=click_event_occurred):
+        if draw_button(screen, controller.font_small, 300,460, 300, 50, "LOGOUT", event_click=click_event_occurred):
             if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_small, "Are you sure you want to logout?"):
                 send_json(controller.sock, {"type": "LOGOUT"})
                 state["is_login"] = False
                 state["username"] = ""
                 state["user_id"] = 0
                 controller.show_message("Logged out!")
+
+
+def draw_leaderboard_screen(controller, click_event_occurred):
+    screen = controller.screen
+    state = controller.state
+    
+    # Background
+    if hasattr(controller, 'lobby_bg_img') and controller.lobby_bg_img:
+        screen.blit(controller.lobby_bg_img, (0, 0))
+    else:
+        screen.fill(WHITE)
+    
+    # Title
+    title = controller.font_large.render("LEADERBOARD", True, BLACK)
+    title_rect = title.get_rect(center=(450, 50))
+    screen.blit(title, title_rect)
+    
+    # Table headers
+    headers = ["Rank", "Username", "ELO", "Wins", "Losses", "W/L Ratio"]
+    header_x_positions = [150, 280, 430, 550, 660, 770]
+    
+    y_start = 120
+    header_y = y_start
+    
+    # Draw header background
+    pygame.draw.rect(screen, BLUE, (130, header_y - 5, 640, 40))
+    
+    # Draw headers
+    for i, header in enumerate(headers):
+        header_text = controller.font_small.render(header, True, WHITE)
+        screen.blit(header_text, (header_x_positions[i], header_y))
+    
+    # Draw leaderboard data
+    leaderboard = state.get("leaderboard", [])
+    row_height = 45
+    row_y = header_y + 50
+    
+    for entry in leaderboard[:10]:  # Show top 10
+        # Alternate row colors
+        if entry["rank"] % 2 == 0:
+            pygame.draw.rect(screen, (240, 240, 240), (130, row_y - 5, 640, 40))
+        else:
+            pygame.draw.rect(screen, (255, 255, 255), (130, row_y - 5, 640, 40))
+        
+        # Calculate W/L ratio
+        total_games = entry["wins"] + entry["losses"]
+        if total_games > 0:
+            wl_ratio = f"{(entry['wins'] / total_games * 100):.1f}%"
+        else:
+            wl_ratio = "N/A"
+        
+        # Highlight current user
+        color = GREEN if entry["username"] == state.get("username") else BLACK
+        
+        # Draw data
+        rank_text = controller.font_small.render(f"#{entry['rank']}", True, color)
+        username_text = controller.font_small.render(entry["username"], True, color)
+        elo_text = controller.font_small.render(str(entry["elo"]), True, color)
+        wins_text = controller.font_small.render(str(entry["wins"]), True, color)
+        losses_text = controller.font_small.render(str(entry["losses"]), True, color)
+        ratio_text = controller.font_small.render(wl_ratio, True, color)
+        
+        screen.blit(rank_text, (header_x_positions[0], row_y))
+        screen.blit(username_text, (header_x_positions[1], row_y))
+        screen.blit(elo_text, (header_x_positions[2], row_y))
+        screen.blit(wins_text, (header_x_positions[3], row_y))
+        screen.blit(losses_text, (header_x_positions[4], row_y))
+        screen.blit(ratio_text, (header_x_positions[5], row_y))
+        
+        row_y += row_height
+    
+    # Back button
+    if draw_button(screen, controller.font_small, 300, 550, 300, 50, "BACK TO LOBBY", event_click=click_event_occurred):
+        controller.return_to_lobby()

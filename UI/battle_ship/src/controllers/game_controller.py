@@ -31,6 +31,10 @@ class GameController:
             "is_host": False,
             "lobby_code": "",
             "opponent_joined": False,
+            "in_leaderboard": False,
+            
+            #Other
+            "leaderboard": [],
         }
         self.show_password = False
         
@@ -221,7 +225,12 @@ class GameController:
                 self.show_message("Exited queue")
             else:
                 self.show_message("Exit queue failed")
-
+        elif t == "LEADERBOARD_RES":
+            if len(msg.get("players", [])) > 0:
+                self.state["leaderboard"] = msg["players"]
+                self.show_message("Success to get leaderboard")
+            else:
+                self.show_message("Failed to get leaderboard")
     def show_message(self, text):
         """Hiển thị tin nhắn tạm thời."""
         self.message = text
@@ -424,11 +433,16 @@ class GameController:
         self.state["is_host"] = False
         self.state["lobby_code"] = ""
         self.state["opponent_joined"] = False
+        self.state["in_leaderboard"] = False
         self.input_mode = None
         self.input_active = False
         self.input_text = ""
         self.show_message("Returned to lobby.")
-        
+    
+    
+    def show_leaderboard(self):
+        self.state["in_leaderboard"] = True
+        send_json(self.sock, {"type": "LEADERBOARD_REQ"})
     ### Image Loading ###
     
     def load_images(self):
