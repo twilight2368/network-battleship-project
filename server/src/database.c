@@ -199,7 +199,10 @@ User *db_get_top_users_by_elo(Database *database, int *count)
     const char *sql =
         "SELECT username, elo, wins, losses "
         "FROM users "
-        "ORDER BY elo DESC "
+        "ORDER BY "
+        "  (wins + losses) = 0 ASC, "
+        "  CAST(wins AS REAL) / (wins + losses) DESC, "
+        "  elo DESC "
         "LIMIT 20;";
 
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
