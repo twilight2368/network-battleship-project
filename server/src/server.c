@@ -574,9 +574,13 @@ int main(int argc, char const *argv[])
                             db_update_user_win_lose(&db, opponent->username, opponent->win + 1, opponent->lose);
                             // Update local state
                             pthread_mutex_lock(&connections_lock);
-                            opponent->elo = new_elo_opponent;
-                            opponent->in_game = 0;
-                            opponent->win++;
+                            Player *opponent_player_ptr = getPlayerByUserId(opponent->user_id);
+                            if (opponent_player_ptr)
+                            {
+                                opponent_player_ptr->elo = new_elo_opponent;
+                                opponent_player_ptr->win++;
+                                opponent_player_ptr->in_game = 0;
+                            }
                             pthread_mutex_unlock(&connections_lock);
 
                             // Notify opponent
@@ -945,12 +949,23 @@ int main(int argc, char const *argv[])
                                 db_update_match_result(&db, match_id, winner_str);
 
                                 pthread_mutex_lock(&connections_lock);
-                                attacker->elo = new_elo_attacker;
-                                opponent->elo = new_elo_opponent;
-                                attacker->in_game = 0;
-                                opponent->in_game = 0;
-                                attacker->win++;
-                                opponent->lose++;
+
+                                Player *attacker_player = getPlayerByUserId(attacker->user_id);
+                                if (attacker_player)
+                                {
+                                    attacker_player->elo = new_elo_attacker;
+                                    attacker_player->win++;
+                                    attacker_player->in_game = 0;
+                                }
+
+                                Player *opponent_player = getPlayerByUserId(opponent->user_id);
+                                if (opponent_player)
+                                {
+                                    opponent_player->elo = new_elo_opponent;
+                                    opponent_player->lose++;
+                                    opponent_player->in_game = 0;
+                                }
+
                                 pthread_mutex_unlock(&connections_lock);
 
                                 // Notify players
@@ -1031,17 +1046,25 @@ int main(int argc, char const *argv[])
                             db_update_user_win_lose(&db, resigner->username, resigner->win, resigner->lose + 1);
                             // Update local state
                             pthread_mutex_lock(&connections_lock);
-                            opponent->elo = new_elo_opponent;
-                            resigner->elo = new_elo_resigner;
-                            opponent->in_game = 0;
-                            resigner->in_game = 0;
-                            opponent->win++;
-                            resigner->lose++;
+                            Player *opponent_player = getPlayerByUserId(opponent->user_id);
+                            if (opponent_player)
+                            {
+                                opponent_player->elo = new_elo_opponent;
+                                opponent_player->win++;
+                                opponent_player->in_game = 0;
+                            }
+                            Player *resigner_player = getPlayerByUserId(resigner->user_id);
+                            if (resigner_player)
+                            {
+                                resigner_player->elo = new_elo_resigner;
+                                resigner_player->lose++;
+                                resigner_player->in_game = 0;
+                            }
                             pthread_mutex_unlock(&connections_lock);
 
                             // Notify both players
-                            sendMatchResult(resigner->socket_fd, match_id, "LOSE", resigner->elo);
-                            sendMatchResult(opponent->socket_fd, match_id, "WIN", opponent->elo);
+                            sendMatchResult(resigner->socket_fd, match_id, "LOSE", new_elo_resigner);
+                            sendMatchResult(opponent->socket_fd, match_id, "WIN", new_elo_opponent);
 
                             printf("[GAME OVER] Match %d: %s resigned, %s wins!\n", match_id, resigner->username, opponent->username);
 

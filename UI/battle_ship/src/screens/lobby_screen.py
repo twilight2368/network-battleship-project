@@ -178,7 +178,8 @@ def draw_lobby_screen(controller, click_event_occurred):
 def draw_leaderboard_screen(controller, click_event_occurred):
     screen = controller.screen
     state = controller.state
-    
+    BASE_ELO = 1000
+    CONFIDENCE_GAMES = 50
     # Initialize scroll offset if not exists
     if not hasattr(controller, 'leaderboard_scroll_offset'):
         controller.leaderboard_scroll_offset = 0
@@ -194,15 +195,19 @@ def draw_leaderboard_screen(controller, click_event_occurred):
     title_rect = title.get_rect(center=(600, 50))
     screen.blit(title, title_rect)
     
-    # Table headers
-    headers = ["Rank", "Username", "ELO", "Wins", "Losses", "W/L Ratio"]
-    header_x_positions = [250, 400, 570, 700, 820, 920]
+    # Table layout constants
+    table_x = 180
+    table_width = 840
+    
+    # Table headers with better spacing
+    headers = ["Rank", "Username", "ELO", "Wins", "Losses", "W/L Ratio", "Score"]
+    header_x_positions = [200, 300, 480, 610, 730, 840, 960]
     
     y_start = 120
     header_y = y_start
     
     # Draw header background
-    pygame.draw.rect(screen, BLUE, (230, header_y - 5, 780, 40))
+    pygame.draw.rect(screen, BLUE, (table_x, header_y - 5, table_width, 40))
     
     # Draw headers
     for i, header in enumerate(headers):
@@ -212,7 +217,7 @@ def draw_leaderboard_screen(controller, click_event_occurred):
     # Create scrollable area
     scroll_area_y = header_y + 50
     scroll_area_height = 380  # Height of visible scroll area
-    scroll_area_rect = pygame.Rect(230, scroll_area_y, 780, scroll_area_height)
+    scroll_area_rect = pygame.Rect(table_x, scroll_area_y, table_width, scroll_area_height)
     
     # Create a surface for the scrollable content
     leaderboard = state.get("leaderboard", [])
@@ -235,9 +240,9 @@ def draw_leaderboard_screen(controller, click_event_occurred):
         if row_y + row_height >= scroll_area_y and row_y < scroll_area_y + scroll_area_height:
             # Alternate row colors
             if entry["rank"] % 2 == 0:
-                pygame.draw.rect(screen, (240, 240, 240), (230, row_y - 5, 780, 40))
+                pygame.draw.rect(screen, (240, 240, 240), (table_x, row_y - 5, table_width, 40))
             else:
-                pygame.draw.rect(screen, (255, 255, 255), (230, row_y - 5, 780, 40))
+                pygame.draw.rect(screen, (255, 255, 255), (table_x, row_y - 5, table_width, 40))
             
             # Calculate W/L ratio
             total_games = entry["wins"] + entry["losses"]
@@ -245,7 +250,9 @@ def draw_leaderboard_screen(controller, click_event_occurred):
                 wl_ratio = f"{(entry['wins'] / total_games * 100):.1f}%"
             else:
                 wl_ratio = "N/A"
-            
+            confidence = min(1.0, total_games / CONFIDENCE_GAMES)
+            rank_score = entry["elo"] * confidence + BASE_ELO * (1.0 - confidence)
+            rank_score_text = f"{rank_score:.1f}"
             # Highlight current user
             color = GREEN if entry["username"] == state.get("username") else BLACK
             
@@ -256,6 +263,7 @@ def draw_leaderboard_screen(controller, click_event_occurred):
             wins_text = controller.font_small.render(str(entry["wins"]), True, color)
             losses_text = controller.font_small.render(str(entry["losses"]), True, color)
             ratio_text = controller.font_small.render(wl_ratio, True, color)
+            rank_score_surface = controller.font_small.render(rank_score_text, True, color)
             
             screen.blit(rank_text, (header_x_positions[0], row_y))
             screen.blit(username_text, (header_x_positions[1], row_y))
@@ -263,7 +271,7 @@ def draw_leaderboard_screen(controller, click_event_occurred):
             screen.blit(wins_text, (header_x_positions[3], row_y))
             screen.blit(losses_text, (header_x_positions[4], row_y))
             screen.blit(ratio_text, (header_x_positions[5], row_y))
-        
+            screen.blit(rank_score_surface, (header_x_positions[6], row_y))
         row_y += row_height
     
     # Restore clip
@@ -271,7 +279,7 @@ def draw_leaderboard_screen(controller, click_event_occurred):
     
     # Draw scrollbar if needed
     if total_content_height > scroll_area_height:
-        scrollbar_x = 1020
+        scrollbar_x = table_x + table_width + 5
         scrollbar_y = scroll_area_y
         scrollbar_width = 15
         scrollbar_height = scroll_area_height
@@ -284,12 +292,11 @@ def draw_leaderboard_screen(controller, click_event_occurred):
         thumb_y = scrollbar_y + int((controller.leaderboard_scroll_offset / max_scroll) * (scrollbar_height - thumb_height))
         pygame.draw.rect(screen, BLUE, (scrollbar_x, thumb_y, scrollbar_width, thumb_height))
     
-    # Back button
+    # Back button (centered)
     if draw_button(screen, controller.font_small, 450, 560, 300, 50, "BACK TO LOBBY", event_click=click_event_occurred):
         controller.leaderboard_scroll_offset = 0  # Reset scroll
         controller.return_to_lobby()
-
-
+        
 def handle_leaderboard_scroll(event, controller):
     """Handle scroll events for leaderboard"""
     if event.type == MOUSEBUTTONDOWN:
@@ -328,7 +335,7 @@ def draw_online_players_list(controller, x, y, width, height, click_event_occurr
     screen.blit(title, (x, y - 35))
     
     # Refresh button (small button next to title)
-    refresh_btn_x = x + width - 80
+    refresh_btn_x = x + width - 160
     refresh_btn_y = y - 30
     refresh_btn_width = 80
     refresh_btn_height = 25
