@@ -8,9 +8,9 @@ from pygame.locals import *
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Import modules
-from src.controllers.game_controller import GameController
+from src.controllers.game_controller import GameController, send_json
 from src.screens.login_screen import draw_login_screen, handle_login_events
-from src.screens.lobby_screen import draw_lobby_screen, handle_join_lobby_events, handle_leaderboard_scroll
+from src.screens.lobby_screen import draw_lobby_screen, handle_join_lobby_events, handle_leaderboard_scroll, handle_online_players_scroll
 from src.screens.game_screen import draw_ship_placement_screen, draw_game_screen, handle_game_events
 from src.components.gui_elements import SIZE_WINDOW, WHITE, BLACK, RED
 from src.network.networking import DEFAULT_HOST, DEFAULT_PORT
@@ -37,11 +37,11 @@ def run_game(controller):
         return
 
     controller.start_receiver_thread()
-    
     while controller.running:
         clicked_events_occur = False
         # 1. Handle Events
         for event in pygame.event.get():
+            
             if event.type == QUIT:
                 controller.running = False
             
@@ -55,10 +55,14 @@ def run_game(controller):
                 handle_game_events(event, controller)
             elif controller.state.get("in_leaderboard"):
                 handle_leaderboard_scroll(event, controller)
+            elif controller.state["is_login"] and not controller.state["in_game"] and not controller.state.get("in_custom_lobby"):
+                if event.type == MOUSEBUTTONDOWN and event.button in [4, 5]:
+                    handle_online_players_scroll(event, controller)
             # LOGIC MỚI: Xử lý input text cho Lobby (nhập mã phòng)
             elif controller.state["is_login"]:
                 handle_join_lobby_events(event, controller)
-            
+        
+          
         # 2. Draw Screen
         if not controller.state["is_login"]:
             draw_login_screen(controller, clicked_events_occur)

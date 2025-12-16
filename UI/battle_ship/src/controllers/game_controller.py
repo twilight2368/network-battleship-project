@@ -36,6 +36,8 @@ class GameController:
             # Leaderboard data
             "leaderboard": [],
             
+            # Online data
+            "online_players": [],
             # Match result
             "match_over": False,
             "match_result": None, # "win", "lose", "draw"
@@ -43,7 +45,7 @@ class GameController:
             
         }
         self.show_password = False
-        
+        self.init_online_players = True #Detect first loop for check online players
         # Ship placement logic
         self.placing_ships = False
         self.ships_to_place = ["carrier", "battleship", "cruiser", "submarine", "destroyer"]
@@ -230,12 +232,19 @@ class GameController:
                 self.show_message("Exited queue")
             else:
                 self.show_message("Exit queue failed")
+                
         elif t == "LEADERBOARD_RES":
             if len(msg.get("players", [])) > 0:
                 self.state["leaderboard"] = msg["players"]
                 self.show_message("Success to get leaderboard")
             else:
                 self.show_message("Failed to get leaderboard")
+        
+        elif t == "ONLINE_PLAYERS_RES":
+            if len(msg.get("players", [])) > 0:
+                self.state["online_players"] = msg["players"]
+            else:
+                self.show_message("Failed to get online players")
     
     def show_message(self, text):
         """Hiển thị tin nhắn tạm thời."""

@@ -609,7 +609,7 @@ int main(int argc, char const *argv[])
                     if (player)
                         printf("Disconnection from %s:%d\n", inet_ntoa(player->addr.sin_addr), ntohs(player->addr.sin_port));
                     pthread_mutex_lock(&connections_lock);
-                    memset(player, 0, sizeof(player));
+                    memset(player, 0, sizeof(Player));
                     pthread_mutex_unlock(&connections_lock);
                     close(client_fd);
                     fds[i + 1].fd = 0;
@@ -693,6 +693,8 @@ int main(int argc, char const *argv[])
                                 strncpy(player->username, db_user.username, sizeof(player->username) - 1);
                                 player->elo = db_user.elo;
                                 player->is_login = 1;
+                                player->in_game = 0;
+                                player->in_queue = 0;
                                 player->win = db_user.wins;
                                 player->lose = db_user.losses;
                                 pthread_mutex_unlock(&connections_lock);
