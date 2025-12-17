@@ -4,7 +4,7 @@ import pygame
 from pygame.locals import *
 
 # Import từ components và network
-from src.components.gui_elements import BOARD_SIZE, CELL_SIZE, ORANGE, WHITE, BLACK, RED, GREEN, YELLOW, GRAY, LIGHT_GRAY, draw_button
+from src.components.gui_elements import BOARD_SIZE, CELL_SIZE, ORANGE, WHITE, BLACK, RED, GREEN, YELLOW, GRAY, LIGHT_GRAY, BLUE, draw_button, draw_input_box
 from src.network.networking import send_json
 
 # --- DRAWING LOGIC ---
@@ -258,6 +258,27 @@ def draw_ship_placement_screen(controller, clicked_events_occur):
     else:
         draw_button(screen, controller.font_small, 400, 510, 300, 50,
                "SHIPS CONFIRMED", GRAY, False)    
+        
+    #* CHATBOX
+    send_clicked = draw_chat_box(controller, 800, 150, 350, 375, clicked_events_occur)
+    if send_clicked:
+        chat_msg = controller.state.get("chat_input", "").strip()
+        if chat_msg:
+            # Add our message to history locally
+            controller.state["chat_history"].append({
+                "sender": controller.state["username"],
+                "message": chat_msg,
+                "is_mine": True
+            })
+            
+            # Send to server
+            send_json(controller.sock, {
+                "type": "CHAT_GAME",
+                "match_id": controller.state["match_id"],
+                "message": chat_msg
+            })
+            controller.state["chat_input"] = ""
+            controller.chat_input_active = False
 
 def draw_game_screen(controller, clicked_events_occur):
     
@@ -327,6 +348,28 @@ def draw_game_screen(controller, clicked_events_occur):
             "user_id": state["user_id"]
         })
     
+    #* CHAT BOX HERE
+    send_clicked = draw_chat_box(controller, 800, 130, 350, 375, clicked_events_occur, chat_bg=(0, 0, 0, 100), chat_title_color=WHITE)
+    
+    if send_clicked:
+        chat_msg = controller.state.get("chat_input", "").strip()
+        if chat_msg:
+            # Add our message to history locally
+            controller.state["chat_history"].append({
+                "sender": controller.state["username"],
+                "message": chat_msg,
+                "is_mine": True
+            })
+            
+            # Send to server
+            send_json(controller.sock, {
+                "type": "CHAT_GAME",
+                "match_id": controller.state["match_id"],
+                "message": chat_msg
+            })
+            controller.state["chat_input"] = ""
+            controller.chat_input_active = False
+            
     return enemy_board_rect
 
 def draw_match_result_screen(controller, click_event_occurred): 
@@ -377,13 +420,88 @@ def draw_match_result_screen(controller, click_event_occurred):
         controller.return_to_lobby() 
          
     # Rematch button
-    if draw_button(screen, font_small, btn_x, 470, btn_width, btn_height, "REMATCH", GRAY, click_event_occurred): 
-        print("Rematch button clicked (not implemented)") 
-        try: 
-            controller.show_message("Rematch is not implemented yet!")  
-        except AttributeError: 
-            pass
+    # if draw_button(screen, font_small, btn_x, 470, btn_width, btn_height, "REMATCH", GRAY, click_event_occurred): 
+    #     print("Rematch button clicked (not implemented)") 
+    #     try: 
+    #         controller.show_message("Rematch is not implemented yet!")  
+    #     except AttributeError: 
+    #         pass
+
+def draw_chat_box(controller, x, y, width, height, clicked_events_occur,  chat_bg = (255, 255, 255, 200), chat_title_color = BLACK, num_chat_show = 15):
+    """Draw chat box with messages and input field."""
+    screen = controller.screen
+    state = controller.state
     
+    # Chat container background
+    chat_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    chat_surface.fill(chat_bg)  # Semi-transparent white
+    screen.blit(chat_surface, (x, y))
+    pygame.draw.rect(screen, BLACK, (x, y, width, height), 2)
+    
+    # Chat title
+    title = controller.font_small.render("CHAT", True, chat_title_color)
+    screen.blit(title, (x + 5, y + 5))
+    
+    # Messages area
+    msg_area_y = y + 35
+    msg_area_height = height - 80
+    
+    # Draw messages (scrolled to bottom)
+    chat_history = state.get("chat_history", [])
+    visible_messages = chat_history[-num_chat_show:]  # Show last 8 messages
+    
+    for i, chat_msg in enumerate(visible_messages):
+        sender = chat_msg.get("sender", "Unknown")
+        message = chat_msg.get("message", "")
+        is_mine = chat_msg.get("is_mine", False)
+        
+        # Different color for own messages
+        if is_mine:
+            color = BLUE
+            display_text = f"You: {message}"
+        else:
+            color = RED
+            display_text = f"{sender}: {message}"
+        
+        msg_surf = controller.font_supersmall.render(display_text, True, color)
+        msg_y = msg_area_y + (i * 20)
+        
+        # Truncate long messages
+        if msg_surf.get_width() > width - 15:
+            display_text = display_text[:40] + "..."
+            msg_surf = controller.font_supersmall.render(display_text, True, color)
+        
+        screen.blit(msg_surf, (x + 5, msg_y))
+    
+    # Input box
+    input_y = y + height - 40
+    input_height = 30
+    
+    draw_input_box(
+        screen, controller.font_supersmall,
+        x + 5, input_y, width - 60, input_height,
+        controller.chat_input_active,
+        controller.state.get("chat_input", ""),
+        placeholder="Type message..."
+    )
+    
+    # Send button
+    send_clicked = draw_button(
+        screen, controller.font_supersmall,
+        x + width - 50, input_y, 45, input_height,
+        "SEND", GREEN, clicked_events_occur
+    )
+    
+    # Handle input box click
+    mouse_pos = pygame.mouse.get_pos()
+    if clicked_events_occur:
+        input_rect = pygame.Rect(x + 5, input_y, width - 60, input_height)
+        if input_rect.collidepoint(mouse_pos):
+            controller.chat_input_active = True
+        elif not send_clicked:  # Don't deactivate if clicking send button
+            controller.chat_input_active = False
+    
+    return send_clicked
 # --- EVENT HANDLERS ---
 
 def handle_game_events(event, controller):
@@ -406,6 +524,41 @@ def handle_game_events(event, controller):
     # update timer
     controller.update_turn_timer()
     
+    # CHAT INPUT HANDLING (before existing KEYDOWN handler)
+    if event.type == KEYDOWN:
+        if controller.chat_input_active:
+            if event.key == K_RETURN:
+                # Send message on Enter
+                chat_msg = controller.state.get("chat_input", "").strip()
+                if chat_msg:
+                    # Add our message to history locally
+                    controller.state["chat_history"].append({
+                        "sender": controller.state["username"],
+                        "message": chat_msg,
+                        "is_mine": True
+                    })
+                    
+                    # Send to server
+                    send_json(controller.sock, {
+                        "type": "CHAT_GAME",
+                        "match_id": controller.state["match_id"],
+                        "message": chat_msg
+                    })
+                    controller.state["chat_input"] = ""
+                controller.chat_input_active = False
+                return  # Don't process other events
+            elif event.key == K_BACKSPACE:
+                controller.state["chat_input"] = controller.state.get("chat_input", "")[:-1]
+                return
+            elif event.key == K_ESCAPE:
+                controller.chat_input_active = False
+                return
+            else:
+                # Add character
+                if len(controller.state.get("chat_input", "")) < 100:
+                    controller.state["chat_input"] = controller.state.get("chat_input", "") + event.unicode
+                return  # Don't process other events when typing
+            
     if event.type == KEYDOWN:
         # Rotate ship WHILE DRAGGING - QUAN TRỌNG
         if controller.placing_ships and event.key == K_r:
@@ -510,4 +663,5 @@ def handle_game_events(event, controller):
                 
                 controller.dragging_ship = None
                 controller.drag_start_pos = None
+    
     

@@ -178,8 +178,6 @@ def draw_lobby_screen(controller, click_event_occurred):
 def draw_leaderboard_screen(controller, click_event_occurred):
     screen = controller.screen
     state = controller.state
-    BASE_ELO = 1000
-    CONFIDENCE_GAMES = 50
     # Initialize scroll offset if not exists
     if not hasattr(controller, 'leaderboard_scroll_offset'):
         controller.leaderboard_scroll_offset = 0
@@ -200,8 +198,8 @@ def draw_leaderboard_screen(controller, click_event_occurred):
     table_width = 840
     
     # Table headers with better spacing
-    headers = ["Rank", "Username", "ELO", "Wins", "Losses", "W/L Ratio", "Score"]
-    header_x_positions = [200, 300, 480, 610, 730, 840, 960]
+    headers = ["Rank", "Username", "ELO", "Wins", "Losses", "W/L Ratio"]
+    header_x_positions = [200, 300, 480, 610, 730, 840]
     
     y_start = 120
     header_y = y_start
@@ -250,9 +248,7 @@ def draw_leaderboard_screen(controller, click_event_occurred):
                 wl_ratio = f"{(entry['wins'] / total_games * 100):.1f}%"
             else:
                 wl_ratio = "N/A"
-            confidence = min(1.0, total_games / CONFIDENCE_GAMES)
-            rank_score = entry["elo"] * confidence + BASE_ELO * (1.0 - confidence)
-            rank_score_text = f"{rank_score:.1f}"
+           
             # Highlight current user
             color = GREEN if entry["username"] == state.get("username") else BLACK
             
@@ -263,7 +259,7 @@ def draw_leaderboard_screen(controller, click_event_occurred):
             wins_text = controller.font_small.render(str(entry["wins"]), True, color)
             losses_text = controller.font_small.render(str(entry["losses"]), True, color)
             ratio_text = controller.font_small.render(wl_ratio, True, color)
-            rank_score_surface = controller.font_small.render(rank_score_text, True, color)
+           
             
             screen.blit(rank_text, (header_x_positions[0], row_y))
             screen.blit(username_text, (header_x_positions[1], row_y))
@@ -271,7 +267,7 @@ def draw_leaderboard_screen(controller, click_event_occurred):
             screen.blit(wins_text, (header_x_positions[3], row_y))
             screen.blit(losses_text, (header_x_positions[4], row_y))
             screen.blit(ratio_text, (header_x_positions[5], row_y))
-            screen.blit(rank_score_surface, (header_x_positions[6], row_y))
+            
         row_y += row_height
     
     # Restore clip
@@ -332,7 +328,7 @@ def draw_online_players_list(controller, x, y, width, height, click_event_occurr
     
     # Title and Refresh Button
     title = controller.font_small.render("Online Players", True, BLACK)
-    screen.blit(title, (x, y - 35))
+    screen.blit(title, (x + 5, y - 35))
     
     # Refresh button (small button next to title)
     refresh_btn_x = x + width - 160

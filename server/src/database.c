@@ -199,11 +199,12 @@ User *db_get_top_users_by_elo(Database *database, int *count)
     const char *sql =
         "SELECT username, elo, wins, losses, "
         "  ( "
-        "    elo * MIN(1.0, (wins + losses) / 50.0) "
-        "    + 1000 * (1.0 - MIN(1.0, (wins + losses) / 50.0)) "
+        "    elo * MIN(1.0, (wins + losses) / 20.0) "
+        "    + 1000 * (1.0 - MIN(1.0, (wins + losses) / 20.0)) "
         "  ) AS rank_score "
         "FROM users "
         "ORDER BY "
+        "  CASE WHEN (wins + losses) = 0 THEN 1 ELSE 0 END, "
         "  rank_score DESC "
         "LIMIT 20;";
 

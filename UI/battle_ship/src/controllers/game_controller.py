@@ -26,6 +26,9 @@ class GameController:
             "my_board": [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)],
             "enemy_board": [["~" for _ in range(BOARD_SIZE)] for _ in range(BOARD_SIZE)],
             
+            # Chat 
+            "chat_history": [],
+            "chat_input": "",
             # Lobby state
             "in_custom_lobby": False,
             "is_host": False,
@@ -88,7 +91,8 @@ class GameController:
         self.turn_start_time = 0
         self.remaining_time = self.turn_time_limit
         
-        
+        # After self.input_active = False, add:
+        self.chat_input_active = False
         
     ### Server Connection Methods ###
     
@@ -159,7 +163,7 @@ class GameController:
                 self.input_mode = None
                 self.input_active = False
                 self.state["opponent_joined"] = True
-            
+            self.state["chat_history"] = []
             self.state["match_id"] = msg["match_id"]
             
             is_player1 = self.state["username"] == msg["player1"]
@@ -177,7 +181,6 @@ class GameController:
         elif t == "MATCH_START":
             self.placing_ships = False
             self.state["in_game"] = True
-            
             first_user_id = msg.get("first_turn", 0)
             self.state["my_turn"] = (first_user_id == self.state["user_id"])
             
@@ -210,6 +213,22 @@ class GameController:
             result = msg.get("result", "draw")
             new_elo = msg.get("new_elo", 0)
             self.handle_match_result(match_id, result, new_elo)
+        
+        elif t == "CHAT_GAME":
+            match_id = msg.get("match_id", 0)
+            message_text = msg.get("message", "")
+            
+            # Since there's no sender field, we assume it's from the opponent
+            # (our own messages won't be received back from server)
+            self.state["chat_history"].append({
+                "sender": self.state["enemy_name"],
+                "message": message_text,
+                "is_mine": False
+            })
+            
+            # Keep only last 50 messages
+            if len(self.state["chat_history"]) > 15:
+                self.state["chat_history"].pop(0)
         
         elif t == "LOGIN_RES":
             if msg.get("result", 0) == 0:
@@ -257,7 +276,7 @@ class GameController:
     def handle_match_result(self, match_id, result, new_elo):
         """Xử lý tin nhắn MATCH_RESULT và cập nhật trạng thái."""
         print(f"Match {match_id} ended. Result: {result}, new ELO: {new_elo}")
-        
+        self.show_message(f"You {result}! New ELO: {new_elo}")
         self.state["is_login"] = True       
         self.state["in_queue"] = False      
         self.state["in_custom_lobby"] = False
@@ -267,6 +286,7 @@ class GameController:
         self.state["match_over"] = True
         self.state["match_result"] = result
         self.state["new_elo"] = new_elo
+        self.state["chat_history"] = []
     
     ### Ship Placement Methods ###
     
@@ -480,7 +500,8 @@ class GameController:
         self.input_mode = None
         self.input_active = False
         self.input_text = ""
-        
+        self.state["chat_history"] = []
+        self.state["chat_input"] = ""
         # Reset ship placement data
         try:
             from src.components.gui_elements import SHIP_SIZES 
