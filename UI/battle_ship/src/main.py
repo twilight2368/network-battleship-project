@@ -8,26 +8,26 @@ from pygame.locals import *
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Import modules
-from src.controllers.game_controller import GameController
+from src.controllers.game_controller import GameController, send_json
 from src.screens.login_screen import draw_login_screen, handle_login_events
-from src.screens.lobby_screen import draw_lobby_screen, handle_join_lobby_events
+from src.screens.lobby_screen import draw_lobby_screen, handle_join_lobby_events, handle_leaderboard_scroll, handle_online_players_scroll
 from src.screens.game_screen import draw_ship_placement_screen, draw_game_screen, handle_game_events
-from src.components.gui_elements import WHITE, BLACK, RED
+from src.components.gui_elements import SIZE_WINDOW, WHITE, BLACK, RED
 from src.network.networking import DEFAULT_HOST, DEFAULT_PORT
 
 
 def run_game(controller):
     """Vòng lặp game chính."""
     pygame.init()
-    controller.screen = pygame.display.set_mode((900, 700))
+    controller.screen = pygame.display.set_mode(SIZE_WINDOW)
     pygame.display.set_caption("Battleship Game")
     controller.clock = pygame.time.Clock()
     
     # Load fonts
-    controller.font_large = pygame.font.Font(None, 48)
-    controller.font_medium = pygame.font.Font(None, 32)
-    controller.font_small = pygame.font.Font(None, 24)
-    
+    controller.font_large = pygame.font.SysFont("stencil", 48)
+    controller.font_medium = pygame.font.SysFont("impact", 32)
+    controller.font_small = pygame.font.SysFont("agencyfb", 24)
+    controller.font_supersmall = pygame.font.SysFont("consolas", 14)
     # Load assets
     controller.load_images()
     
@@ -37,11 +37,11 @@ def run_game(controller):
         return
 
     controller.start_receiver_thread()
-    
     while controller.running:
         clicked_events_occur = False
         # 1. Handle Events
         for event in pygame.event.get():
+            
             if event.type == QUIT:
                 controller.running = False
             
@@ -53,9 +53,16 @@ def run_game(controller):
                 handle_login_events(event, controller)
             elif controller.state["in_game"] or controller.placing_ships:
                 handle_game_events(event, controller)
+            elif controller.state.get("in_leaderboard"):
+                handle_leaderboard_scroll(event, controller)
+            elif controller.state["is_login"] and not controller.state["in_game"] and not controller.state.get("in_custom_lobby"):
+                if event.type == MOUSEBUTTONDOWN and event.button in [4, 5]:
+                    handle_online_players_scroll(event, controller)
             # LOGIC MỚI: Xử lý input text cho Lobby (nhập mã phòng)
             elif controller.state["is_login"]:
                 handle_join_lobby_events(event, controller)
+        
+          
         # 2. Draw Screen
         if not controller.state["is_login"]:
             draw_login_screen(controller, clicked_events_occur)
@@ -69,7 +76,7 @@ def run_game(controller):
         # 3. Draw Global Message
         if controller.message and pygame.time.get_ticks() < controller.message_timer:
             msg_surf = controller.font_small.render(controller.message, True, RED)
-            msg_rect = msg_surf.get_rect(center=(450, 650))
+            msg_rect = msg_surf.get_rect(center=(600, 650))
             # Draw background box for message
             pygame.draw.rect(controller.screen, WHITE, (msg_rect.x - 5, msg_rect.y - 5, 
                                                   msg_rect.width + 10, msg_rect.height + 10))

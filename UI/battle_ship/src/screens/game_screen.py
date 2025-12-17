@@ -4,15 +4,14 @@ import pygame
 from pygame.locals import *
 
 # Import từ components và network
-from src.components.gui_elements import BOARD_SIZE, CELL_SIZE, WHITE, BLACK, RED, GREEN, draw_button
+from src.components.gui_elements import BOARD_SIZE, CELL_SIZE, ORANGE, WHITE, BLACK, RED, GREEN, YELLOW, GRAY, LIGHT_GRAY, BLUE, draw_button, draw_input_box
 from src.network.networking import send_json
 
 # --- DRAWING LOGIC ---
 
-def draw_board(controller, x_offset, y_offset, board, show_ships=True):
-    """Vẽ board game. (Rút gọn)"""
+def draw_board(controller, x_offset, y_offset, board, show_ships=True, color_number = BLACK):
+    """Vẽ board game."""
     screen = controller.screen
-    # ... (Logic draw_board giữ nguyên như trong file gốc, sử dụng controller.water_img, controller.ship_images)
     
     # Draw water background
     if controller.water_img:
@@ -48,72 +47,284 @@ def draw_board(controller, x_offset, y_offset, board, show_ships=True):
         pygame.draw.line(screen, BLACK, (x_offset + i * CELL_SIZE, y_offset), (x_offset + i * CELL_SIZE, y_offset + 300), 1)
         pygame.draw.line(screen, BLACK, (x_offset, y_offset + i * CELL_SIZE), (x_offset + 300, y_offset + i * CELL_SIZE), 1)
     for i in range(BOARD_SIZE):
-        text = controller.font_small.render(str(i), True, BLACK)
-        screen.blit(text, (x_offset + i * CELL_SIZE + 10, y_offset - 25))
-        text = controller.font_small.render(str(i), True, BLACK)
-        screen.blit(text, (x_offset - 25, y_offset + i * CELL_SIZE + 5))
+        text = controller.font_small.render(str(i), True, color_number)
+        screen.blit(text, (x_offset + i * CELL_SIZE + 10, y_offset - 26))
+        text = controller.font_small.render(str(i), True, color_number)
+        screen.blit(text, (x_offset - 25, y_offset + i * CELL_SIZE + 1))
     
     return x_offset, y_offset, 300, 300
 
+def draw_ship_item(screen, font_small, x, y, ship_name, size, orientation, is_placed, is_dragging=False, ship_images=None):
+    """Vẽ một item tàu trong danh sách bên trái - LUÔN VERTICAL"""
+    # LUÔN VẼ VERTICAL CHO DANH SÁCH (bỏ qua orientation)
+    
+    # Get actual ship image dimensions if available
+    if ship_images and ship_name in ship_images:
+        ship_img = ship_images[ship_name]["vertical"]
+        img_width = ship_img.get_width()
+        img_height = ship_img.get_height()
+        
+        # Add padding around the ship
+        width = img_width + 10
+        height = img_height + 10
+    else:
+        # Fallback dimensions if no image
+        width = 50
+        height = size * 18 + 10
+    
+    # Nền tàu
+    if is_placed:
+        color = (100, 200, 100, 180)  # Xanh lá - đã đặt (semi-transparent)
+    elif is_dragging:
+        color = (255, 255, 150, 200)  # Vàng nhạt - đang kéo
+    else:
+        color = LIGHT_GRAY  # Xám - chưa đặt
+    
+    # Vẽ nền
+    ship_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    ship_surface.fill(color)
+    pygame.draw.rect(ship_surface, BLACK, (0, 0, width, height), 2)
+    screen.blit(ship_surface, (x, y))
+    
+    # Vẽ hình tàu nếu có - LUÔN VERTICAL (NO SCALING)
+    if ship_images and ship_name in ship_images:
+        ship_img = ship_images[ship_name]["vertical"]
+        
+        # Center the ship in the box
+        img_x = x + (width - ship_img.get_width()) // 2
+        img_y = y + (height - ship_img.get_height()) // 2
+        screen.blit(ship_img, (img_x, img_y))
+    
+    return pygame.Rect(x, y, width, height)
+
 def draw_ship_placement_screen(controller, clicked_events_occur):
-    """Vẽ màn hình đặt tàu."""
+    """Vẽ màn hình đặt tàu với drag & drop"""
     screen = controller.screen
     screen.fill(WHITE)
     
-    # Title và Instructions 
-    if controller.current_ship_index < len(controller.ships_to_place):
-        ship_name = controller.ships_to_place[controller.current_ship_index]
-        title = controller.font_medium.render(
-            f"Place {ship_name.upper()} (size: {controller.ship_sizes[ship_name]})", True, BLACK)
-        screen.blit(title, (50, 30))
-        orient_text = "VERTICAL" if controller.ship_orientation == 0 else "HORIZONTAL"
-        inst1 = controller.font_small.render(f"Orientation: {orient_text} (Press R to rotate)", True, BLACK)
-        inst2 = controller.font_small.render("Click on board to place ship", True, BLACK)
-        screen.blit(inst1, (50, 70))
-        screen.blit(inst2, (50, 95))
+    # Draw background image if available
+    if hasattr(controller, 'in_queue_bg_img') and controller.in_queue_bg_img:
+        screen.blit(controller.in_queue_bg_img, (0, 0))
+    else:
+        screen.fill(WHITE)
+    
+    # Semi-transparent overlay for better text visibility
+    overlay = pygame.Surface((1200, 700))
+    overlay.set_alpha(100)
+    overlay.fill(WHITE)
+    screen.blit(overlay, (0, 0))
+    
+    # Title
+    title = controller.font_medium.render("PLACE YOUR SHIPS", True, BLACK)
+    screen.blit(title, (50, 20))
+    
+    # Instructions
+    inst1 = controller.font_small.render("Drag ships to board", True, BLACK)
+    inst2 = controller.font_small.render("Press R while dragging to rotate", True, BLACK)
+    screen.blit(inst1, (50, 60))
+    screen.blit(inst2, (50, 85))
     
     # Draw board
-    board_x, board_y = 300, 150
+    board_x, board_y = 400, 150
     draw_board(controller, board_x, board_y, controller.state["my_board"], show_ships=True)
     
-    # Draw preview - UPDATE match start
-    if controller.current_ship_index >= len(controller.ships_to_place):
-        title = controller.font_large.render("Ships placed!", True, GREEN)
-        title_rect = title.get_rect(center=(450, 70))
-        screen.blit(title, title_rect)
+    # Draw ship list on the left - 2 COLUMNS LAYOUT (LUÔN VERTICAL)
+    ship_list_x1 = 30   # Column 1
+    ship_list_x2 = 120  # Column 2
+    ship_list_y = 180
+    controller.ship_rects = {}
+    
+    col1_y_offset = 0
+    col2_y_offset = 0
+    
+    for i, ship_name in enumerate(controller.ships_to_place):
+        size = controller.ship_sizes[ship_name]
+        is_placed = ship_name in controller.placed_ships and controller.placed_ships[ship_name] is not None
         
-        wait_text = controller.font_medium.render("Waiting for opponent to place ships...", True, BLACK)
-        wait_rect = wait_text.get_rect(center=(450, 120))
-        screen.blit(wait_text, wait_rect)
-    else:
+        # Get orientation for this ship (CHỈ DÙNG KHI KÉO)
+        orientation = controller.ship_orientations.get(ship_name, 0)
+        
+        is_dragging = (controller.dragging_ship == ship_name)
+        
+        # Chia 2 cột: 2 tàu đầu cột 1, 3 tàu sau cột 2
+        if i < 2:  # Column 1
+            x_pos = ship_list_x1
+            y_pos = ship_list_y + col1_y_offset
+        else:  # Column 2
+            x_pos = ship_list_x2
+            y_pos = ship_list_y + col2_y_offset
+        
+        # draw_ship_item luôn vẽ vertical, bỏ qua orientation parameter
+        rect = draw_ship_item(
+            screen, controller.font_small,
+            x_pos, y_pos,
+            ship_name, size, orientation,  # orientation vẫn truyền nhưng không dùng
+            is_placed, is_dragging,
+            controller.ship_images
+        )
+        controller.ship_rects[ship_name] = rect
+        
+        # Cộng thêm khoảng cách cho tàu tiếp theo (LUÔN DÙNG CHIỀU CAO VERTICAL)
+        if i < 2:
+            col1_y_offset += rect.height + 25
+        else:
+            col2_y_offset += rect.height + 25
+    
+    # Draw dragging ship following mouse
+    if controller.dragging_ship:
+        mouse_pos = pygame.mouse.get_pos()
+        ship_name = controller.dragging_ship
+        size = controller.ship_sizes[ship_name]
+        orientation = controller.ship_orientations.get(ship_name, 0)
+        
+        if controller.ship_images and ship_name in controller.ship_images:
+            orient_key = "vertical" if orientation == 0 else "horizontal"
+            ship_img = controller.ship_images[ship_name][orient_key]
+            
+            # Make it semi-transparent
+            drag_img = ship_img.copy()
+            drag_img.set_alpha(180)
+            
+            # Center on mouse
+            img_rect = drag_img.get_rect(center=mouse_pos)
+            screen.blit(drag_img, img_rect)
+    
+    # Draw preview on board when hovering (CHỈ KHI ĐANG KÉO)
+    if controller.dragging_ship:
         mouse_pos = pygame.mouse.get_pos()
         if board_x <= mouse_pos[0] < board_x + 300 and board_y <= mouse_pos[1] < board_y + 300:
             col = (mouse_pos[0] - board_x) // CELL_SIZE
             row = (mouse_pos[1] - board_y) // CELL_SIZE
             
-            ship_name = controller.ships_to_place[controller.current_ship_index]
-            if controller.can_place_ship(row, col, ship_name):
+            ship_name = controller.dragging_ship
+            orientation = controller.ship_orientations.get(ship_name, 0)
+            
+            if controller.can_place_ship(row, col, ship_name, orientation):
                 size = controller.ship_sizes[ship_name]
                 for i in range(size):
-                    r = row + i if controller.ship_orientation == 0 else row
-                    c = col + i if controller.ship_orientation == 1 else col
-                    cell_x = board_x + c * CELL_SIZE
-                    cell_y = board_y + r * CELL_SIZE
-                    
-                    s = pygame.Surface((CELL_SIZE - 4, CELL_SIZE - 4))
-                    s.set_alpha(128)
-                    s.fill(GREEN)
-                    screen.blit(s, (cell_x + 2, cell_y + 2))
+                    r = row + i if orientation == 0 else row
+                    c = col + i if orientation == 1 else col
+                    if 0 <= r < BOARD_SIZE and 0 <= c < BOARD_SIZE:
+                        cell_x = board_x + c * CELL_SIZE
+                        cell_y = board_y + r * CELL_SIZE
+                        
+                        s = pygame.Surface((CELL_SIZE - 4, CELL_SIZE - 4))
+                        s.set_alpha(128)
+                        s.fill(GREEN)
+                        screen.blit(s, (cell_x + 2, cell_y + 2))
+    
+    # Buttons
+    all_placed = all(controller.placed_ships.get(ship) is not None for ship in controller.ships_to_place)
+    
+    # Random Place Button
+    if not controller.ships_confirmed:
+        if draw_button(screen, controller.font_small, 50, 120, 150, 35, 
+                    "Random Place", YELLOW, clicked_events_occur):
+            controller.random_place_ships()
+    else:
+        draw_button(screen, controller.font_small, 50, 120, 150, 35, 
+                "Random Place", GRAY, False)
+
+    # Clear All Button 
+    if not controller.ships_confirmed:
+        if draw_button(screen, controller.font_small, 220, 120, 120, 35,
+                    "Clear All", RED, clicked_events_occur):
+            controller.clear_all_ships()
+    else:
+        draw_button(screen, controller.font_small, 220, 120, 120, 35,
+                "Clear All", GRAY, False)
+    
+    # Status text
+    if all_placed:
+        remaining_text = "All ships placed!"
+        text_color = GREEN
+    else:
+        remaining = sum(1 for ship in controller.ships_to_place if controller.placed_ships.get(ship) is None)
+        remaining_text = f"Ships remaining: {remaining}"
+        text_color = RED
+    
+    status = controller.font_small.render(remaining_text, True, text_color)
+    screen.blit(status, (400, 480))
+    
+    # Play Button (only enabled when all ships placed)
+    play_color = GREEN if all_placed else GRAY
+    play_text = "READY!" if all_placed else "PLAY (Place all ships)"
+    # Updated to check controller.ships_confirmed
+    if not controller.ships_confirmed:
+        if draw_button(screen, controller.font_small, 400, 510, 300, 50,
+                    play_text, play_color, clicked_events_occur and all_placed):
+            if all_placed:
+                controller.confirm_ship_placement()
+    else:
+        draw_button(screen, controller.font_small, 400, 510, 300, 50,
+               "SHIPS CONFIRMED", GRAY, False)    
+        
+    #* CHATBOX
+    send_clicked = draw_chat_box(controller, 800, 150, 350, 375, clicked_events_occur)
+    if send_clicked:
+        chat_msg = controller.state.get("chat_input", "").strip()
+        if chat_msg:
+            # Add our message to history locally
+            controller.state["chat_history"].append({
+                "sender": controller.state["username"],
+                "message": chat_msg,
+                "is_mine": True
+            })
+            
+            # Send to server
+            send_json(controller.sock, {
+                "type": "CHAT_GAME",
+                "match_id": controller.state["match_id"],
+                "message": chat_msg
+            })
+            controller.state["chat_input"] = ""
+            controller.chat_input_active = False
 
 def draw_game_screen(controller, clicked_events_occur):
+    
+    """Vẽ màn hình game over."""
+    # Game result overlay
+    if controller.state["match_over"]:
+        controller.screen.fill(WHITE)
+        draw_match_result_screen(controller, clicked_events_occur)
+        return
+    """Vẽ màn hình đặt tàu."""
+    if controller.placing_ships:
+        # Nếu chưa kết thúc, và đang đặt tàu
+        draw_ship_placement_screen(controller, clicked_events_occur)
+        return
+    
     """Vẽ màn hình game chính."""
     screen = controller.screen
     state = controller.state
     
     screen.fill(WHITE)
     
-    # Title/Turn Indicator (Giữ nguyên)
-    title = controller.font_medium.render(f"VS {state['enemy_name']}", True, BLACK)
+    if hasattr(controller, 'in_game_bg_img') and controller.in_game_bg_img:
+        screen.blit(controller.in_game_bg_img, (0, 0))
+    else:
+        screen.fill(WHITE)
+    
+    # Update timer
+    if state["my_turn"]:
+        elapsed_time = pygame.time.get_ticks() - controller.turn_start_time
+        remaining_ms = controller.turn_time_limit - elapsed_time
+        
+        if remaining_ms <= 0:
+            remaining_s = 0
+        else:
+            remaining_s = remaining_ms // 1000
+        time_text = f"YOUR TURN: {remaining_s:02d}s"
+        text_color = RED if remaining_s <= 5 else GREEN
+    else:
+        time_text = "OPPONENT'S TURN"
+        text_color = BLACK
+    time_surf = controller.font_small.render(time_text, True, text_color)
+    time_rect = time_surf.get_rect(topright=(880, 20))
+    screen.blit(time_surf, time_rect)    
+    
+    # Title/Turn Indicator
+    title = controller.font_medium.render(f"VS {state['enemy_name']}", True, WHITE)
     screen.blit(title, (50, 20))
     turn_text = "YOUR TURN - Click enemy board to attack" if state["my_turn"] else "OPPONENT'S TURN"
     turn_color = GREEN if state["my_turn"] else RED
@@ -121,13 +332,13 @@ def draw_game_screen(controller, clicked_events_occur):
     screen.blit(turn_surf, (50, 55))
     
     # Draw boards
-    my_label = controller.font_small.render("Your Board", True, BLACK)
+    my_label = controller.font_small.render("Your Board", True,  WHITE)
     screen.blit(my_label, (130, 80))
-    draw_board(controller, 80, 130, state["my_board"], show_ships=True)
+    draw_board(controller, 80, 130, state["my_board"], show_ships=True, color_number=WHITE)
     
-    enemy_label = controller.font_small.render("Enemy Board", True, BLACK)
+    enemy_label = controller.font_small.render("Enemy Board", True,  WHITE)
     screen.blit(enemy_label, (530, 80))
-    enemy_board_rect = draw_board(controller, 480, 130, state["enemy_board"], show_ships=False)
+    enemy_board_rect = draw_board(controller, 480, 130, state["enemy_board"], show_ships=False, color_number=WHITE)
     
     # Buttons
     if draw_button(screen, controller.font_small, 350, 500, 200, 50, "RESIGN", event_click=clicked_events_occur):
@@ -137,31 +348,280 @@ def draw_game_screen(controller, clicked_events_occur):
             "user_id": state["user_id"]
         })
     
+    #* CHAT BOX HERE
+    send_clicked = draw_chat_box(controller, 800, 130, 350, 375, clicked_events_occur, chat_bg=(0, 0, 0, 100), chat_title_color=WHITE)
+    
+    if send_clicked:
+        chat_msg = controller.state.get("chat_input", "").strip()
+        if chat_msg:
+            # Add our message to history locally
+            controller.state["chat_history"].append({
+                "sender": controller.state["username"],
+                "message": chat_msg,
+                "is_mine": True
+            })
+            
+            # Send to server
+            send_json(controller.sock, {
+                "type": "CHAT_GAME",
+                "match_id": controller.state["match_id"],
+                "message": chat_msg
+            })
+            controller.state["chat_input"] = ""
+            controller.chat_input_active = False
+            
     return enemy_board_rect
 
+def draw_match_result_screen(controller, click_event_occurred): 
+    """Draws the match result overlay with ELO change and buttons.""" 
+    screen = controller.screen 
+    state = controller.state 
+     
+    font_large = controller.font_large 
+    font_medium = controller.font_medium 
+    font_small = controller.font_small 
+     
+    # Background
+    if hasattr(controller, 'in_game_over_bg_img') and controller.in_game_over_bg_img: 
+        screen.blit(controller.in_game_over_bg_img, (0, 0)) 
+    else: 
+        screen.fill(WHITE) 
+     
+    result = state.get("match_result", "draw") 
+    new_elo = state.get("new_elo", 0) 
+     
+    if result == "WIN": 
+        result_text = "VICTORY!" 
+        result_color = GREEN 
+    elif result == "LOSE": 
+        result_text = "DEFEAT!" 
+        result_color = RED 
+    else: 
+        result_text = "DRAW" 
+        result_color = YELLOW 
+         
+    # Main result text - centered
+    title_surf = font_large.render(result_text, True, result_color) 
+    title_rect = title_surf.get_rect(center=(600, 250)) 
+    screen.blit(title_surf, title_rect) 
+     
+    # ELO text - centered below result
+    elo_text = f"New ELO: {new_elo}" 
+    elo_surf = font_medium.render(elo_text, True, result_color) 
+    elo_rect = elo_surf.get_rect(center=(600, 320)) 
+    screen.blit(elo_surf, elo_rect) 
+     
+    # Buttons - centered and stacked vertically
+    btn_width, btn_height = 300, 50 
+    btn_x = (1200 - btn_width) // 2
+    
+    # Return to Lobby button
+    if draw_button(screen, font_small, btn_x, 400, btn_width, btn_height, "RETURN TO LOBBY", ORANGE, click_event_occurred): 
+        controller.return_to_lobby() 
+         
+    # Rematch button
+    # if draw_button(screen, font_small, btn_x, 470, btn_width, btn_height, "REMATCH", GRAY, click_event_occurred): 
+    #     print("Rematch button clicked (not implemented)") 
+    #     try: 
+    #         controller.show_message("Rematch is not implemented yet!")  
+    #     except AttributeError: 
+    #         pass
+
+def draw_chat_box(controller, x, y, width, height, clicked_events_occur,  chat_bg = (255, 255, 255, 200), chat_title_color = BLACK, num_chat_show = 15):
+    """Draw chat box with messages and input field."""
+    screen = controller.screen
+    state = controller.state
+    
+    # Chat container background
+    chat_surface = pygame.Surface((width, height), pygame.SRCALPHA)
+    chat_surface.fill(chat_bg)  # Semi-transparent white
+    screen.blit(chat_surface, (x, y))
+    pygame.draw.rect(screen, BLACK, (x, y, width, height), 2)
+    
+    # Chat title
+    title = controller.font_small.render("CHAT", True, chat_title_color)
+    screen.blit(title, (x + 5, y + 5))
+    
+    # Messages area
+    msg_area_y = y + 35
+    msg_area_height = height - 80
+    
+    # Draw messages (scrolled to bottom)
+    chat_history = state.get("chat_history", [])
+    visible_messages = chat_history[-num_chat_show:]  # Show last 8 messages
+    
+    for i, chat_msg in enumerate(visible_messages):
+        sender = chat_msg.get("sender", "Unknown")
+        message = chat_msg.get("message", "")
+        is_mine = chat_msg.get("is_mine", False)
+        
+        # Different color for own messages
+        if is_mine:
+            color = BLUE
+            display_text = f"You: {message}"
+        else:
+            color = RED
+            display_text = f"{sender}: {message}"
+        
+        msg_surf = controller.font_supersmall.render(display_text, True, color)
+        msg_y = msg_area_y + (i * 20)
+        
+        # Truncate long messages
+        if msg_surf.get_width() > width - 15:
+            display_text = display_text[:40] + "..."
+            msg_surf = controller.font_supersmall.render(display_text, True, color)
+        
+        screen.blit(msg_surf, (x + 5, msg_y))
+    
+    # Input box
+    input_y = y + height - 40
+    input_height = 30
+    
+    draw_input_box(
+        screen, controller.font_supersmall,
+        x + 5, input_y, width - 60, input_height,
+        controller.chat_input_active,
+        controller.state.get("chat_input", ""),
+        placeholder="Type message..."
+    )
+    
+    # Send button
+    send_clicked = draw_button(
+        screen, controller.font_supersmall,
+        x + width - 50, input_y, 45, input_height,
+        "SEND", GREEN, clicked_events_occur
+    )
+    
+    # Handle input box click
+    mouse_pos = pygame.mouse.get_pos()
+    if clicked_events_occur:
+        input_rect = pygame.Rect(x + 5, input_y, width - 60, input_height)
+        if input_rect.collidepoint(mouse_pos):
+            controller.chat_input_active = True
+        elif not send_clicked:  # Don't deactivate if clicking send button
+            controller.chat_input_active = False
+    
+    return send_clicked
 # --- EVENT HANDLERS ---
 
 def handle_game_events(event, controller):
     """Xử lý sự kiện cho màn hình đặt tàu và game chính."""
+    # update match result overlay
+    if controller.state["match_over"]:
+        if event.type == MOUSEBUTTONDOWN and event.button == 1:
+            pass
+        # Block other game events (like ship rotation/movement/attacks)
+        if event.type in [KEYDOWN, MOUSEMOTION]:
+            return
+        
+        # Block MOUSEBUTTONUP for board attacks/ship dropping
+        if event.type == MOUSEBUTTONUP and event.button == 1:
+            # Only return if the click was not on a button
+            return
+        
+        return
+    
+    # update timer
+    controller.update_turn_timer()
+    
+    # CHAT INPUT HANDLING (before existing KEYDOWN handler)
     if event.type == KEYDOWN:
-        # Rotate ship during placement
+        if controller.chat_input_active:
+            if event.key == K_RETURN:
+                # Send message on Enter
+                chat_msg = controller.state.get("chat_input", "").strip()
+                if chat_msg:
+                    # Add our message to history locally
+                    controller.state["chat_history"].append({
+                        "sender": controller.state["username"],
+                        "message": chat_msg,
+                        "is_mine": True
+                    })
+                    
+                    # Send to server
+                    send_json(controller.sock, {
+                        "type": "CHAT_GAME",
+                        "match_id": controller.state["match_id"],
+                        "message": chat_msg
+                    })
+                    controller.state["chat_input"] = ""
+                controller.chat_input_active = False
+                return  # Don't process other events
+            elif event.key == K_BACKSPACE:
+                controller.state["chat_input"] = controller.state.get("chat_input", "")[:-1]
+                return
+            elif event.key == K_ESCAPE:
+                controller.chat_input_active = False
+                return
+            else:
+                # Add character
+                if len(controller.state.get("chat_input", "")) < 100:
+                    controller.state["chat_input"] = controller.state.get("chat_input", "") + event.unicode
+                return  # Don't process other events when typing
+            
+    if event.type == KEYDOWN:
+        # Rotate ship WHILE DRAGGING - QUAN TRỌNG
         if controller.placing_ships and event.key == K_r:
-            controller.ship_orientation = 1 - controller.ship_orientation
+            if controller.dragging_ship:
+                # Xoay tàu đang kéo
+                controller.rotate_ship(controller.dragging_ship)
+                print(f"Rotated {controller.dragging_ship} while dragging")
+            else:
+                # Xoay tàu dưới con trỏ chuột (nếu không đang kéo)
+                mouse_pos = pygame.mouse.get_pos()
+                for ship_name, rect in controller.ship_rects.items():
+                    if rect.collidepoint(mouse_pos):
+                        controller.rotate_ship(ship_name)
+                        break
     
     elif event.type == MOUSEBUTTONDOWN:
         if event.button == 1:  # Left click
             mouse_pos = pygame.mouse.get_pos()
             
-            # Ship placement
-            if controller.placing_ships and controller.current_ship_index < len(controller.ships_to_place):
-                board_x, board_y = 300, 150
-                if board_x <= mouse_pos[0] < board_x + 300 and board_y <= mouse_pos[1] < board_y + 300:
-                    col = (mouse_pos[0] - board_x) // CELL_SIZE
-                    row = (mouse_pos[1] - board_y) // CELL_SIZE
-                    
-                    ship_name = controller.ships_to_place[controller.current_ship_index]
-                    if controller.can_place_ship(row, col, ship_name):
-                        controller.place_ship(row, col, ship_name)
+            # Ship placement with drag & drop
+            if controller.placing_ships:
+                # Check if clicking on a ship in the list
+                clicked_ship = False
+                for ship_name, rect in controller.ship_rects.items():
+                    if rect.collidepoint(mouse_pos):
+                        # Start dragging
+                        if controller.placed_ships.get(ship_name) is not None:
+                            # Remove from board to re-place
+                            controller.remove_ship(ship_name)
+                        controller.dragging_ship = ship_name
+                        controller.drag_start_pos = mouse_pos
+                        clicked_ship = True
+                        print(f"Started dragging: {ship_name}")
+                        break
+                
+                # If not clicking on ship, check if clicking on board to remove ship
+                if not clicked_ship:
+                    board_x, board_y = 400, 150
+                    if board_x <= mouse_pos[0] < board_x + 300 and board_y <= mouse_pos[1] < board_y + 300:
+                        col = (mouse_pos[0] - board_x) // CELL_SIZE
+                        row = (mouse_pos[1] - board_y) // CELL_SIZE
+                        
+                        # Check if there's a ship at this position
+                        for ship_name, pos in controller.placed_ships.items():
+                            if pos:
+                                ship_row, ship_col, ship_orient = pos
+                                size = controller.ship_sizes[ship_name]
+                                
+                                # Check if click is on this ship
+                                on_ship = False
+                                if ship_orient == 0:  # Vertical
+                                    if col == ship_col and ship_row <= row < ship_row + size:
+                                        on_ship = True
+                                else:  # Horizontal
+                                    if row == ship_row and ship_col <= col < ship_col + size:
+                                        on_ship = True
+                                
+                                if on_ship:
+                                    controller.remove_ship(ship_name)
+                                    controller.dragging_ship = ship_name
+                                    controller.drag_start_pos = mouse_pos
+                                    print(f"Picked up ship from board: {ship_name}")
+                                    break
             
             # Attack during game
             elif controller.state["in_game"] and controller.state["my_turn"]:
@@ -178,3 +638,30 @@ def handle_game_events(event, controller):
                             "row": row,
                             "col": col
                         })
+    
+    elif event.type == MOUSEBUTTONUP:
+        if event.button == 1:  # Left click release
+            mouse_pos = pygame.mouse.get_pos()
+            
+            # Drop ship on board
+            if controller.placing_ships and controller.dragging_ship:
+                board_x, board_y = 400, 150
+                if board_x <= mouse_pos[0] < board_x + 300 and board_y <= mouse_pos[1] < board_y + 300:
+                    col = (mouse_pos[0] - board_x) // CELL_SIZE
+                    row = (mouse_pos[1] - board_y) // CELL_SIZE
+                    
+                    ship_name = controller.dragging_ship
+                    orientation = controller.ship_orientations.get(ship_name, 0)
+                    
+                    if controller.can_place_ship(row, col, ship_name, orientation):
+                        controller.place_ship(row, col, ship_name, orientation)
+                        print(f"Placed {ship_name} at ({row}, {col})")
+                    else:
+                        print(f"Cannot place {ship_name} at ({row}, {col})")
+                else:
+                    print(f"Dropped {controller.dragging_ship} outside board")
+                
+                controller.dragging_ship = None
+                controller.drag_start_pos = None
+    
+    
