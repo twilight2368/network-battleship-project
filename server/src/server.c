@@ -368,6 +368,48 @@ cJSON *get_top20_leaderboard_json(void)
     return array;
 }
 
+// Add this helper function to your server code
+
+cJSON *get_user_match_history_json(const char *username)
+{
+    if (!username)
+        return NULL;
+
+    int count = 0;
+    Match *matches = db_get_matches_by_user(&db, username, &count);
+
+    cJSON *matches_array = cJSON_CreateArray();
+    if (!matches_array)
+    {
+        if (matches)
+            free(matches);
+        return NULL;
+    }
+
+    if (!matches || count == 0)
+    {
+        if (matches)
+            free(matches);
+        return matches_array; // return empty array safely
+    }
+
+    for (int i = 0; i < count; i++)
+    {
+        cJSON *match_obj = cJSON_CreateObject();
+        if (!match_obj)
+            continue;
+
+        cJSON_AddStringToObject(match_obj, "player1", matches[i].player1);
+        cJSON_AddStringToObject(match_obj, "player2", matches[i].player2);
+        cJSON_AddStringToObject(match_obj, "result", matches[i].result);
+
+        cJSON_AddItemToArray(matches_array, match_obj);
+    }
+
+    free(matches);
+    return matches_array;
+}
+
 // todo: ================= MATCHMAKING THREAD ===================
 void *matchmaking_thread(void *arg)
 {
@@ -1227,6 +1269,24 @@ int main(int argc, char const *argv[])
 
                             sendResponse(client_fd, res);
                         }
+                        // todo: MATCH HISTORY LIST
+                        else if (strcmp(endpoint, "MATCH_HISTORY_REQ") == 0)
+                        {
+                            if (!player->is_login)
+                            {
+                                sendError(client_fd, "Player is not logged in");
+                                continue;
+                            }
+
+                            cJSON *matches = get_user_match_history_json(player->username);
+                            cJSON *res = cJSON_CreateObject();
+
+                            cJSON_AddStringToObject(res, "type", "MATCH_HISTORY_RES");
+                            cJSON_AddItemToObject(res, "matches", matches);
+
+                            sendResponse(client_fd, res);
+                        }
+
                         else // todo: UNKNOWN
                         {
                             printf("[UNKNOWN] %s:%d\n", inet_ntoa(player->addr.sin_addr), ntohs(player->addr.sin_port));

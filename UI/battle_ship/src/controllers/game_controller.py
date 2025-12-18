@@ -39,6 +39,10 @@ class GameController:
             # Leaderboard data
             "leaderboard": [],
             
+            # Match History data 
+            "match_history": [],
+            "in_match_history": False,
+        
             # Online data
             "online_players": [],
             # Match result
@@ -258,7 +262,12 @@ class GameController:
                 self.show_message("Success to get leaderboard")
             else:
                 self.show_message("Failed to get leaderboard")
-        
+        elif t == "MATCH_HISTORY_RES":
+            if len(msg.get("matches", [])) > 0:
+                self.state["match_history"] = msg["matches"]
+                self.show_message("Match history loaded")
+            else:
+                self.show_message("No match history found")
         elif t == "ONLINE_PLAYERS_RES":
             if len(msg.get("players", [])) > 0:
                 self.state["online_players"] = msg["players"]
@@ -497,6 +506,7 @@ class GameController:
         self.state["lobby_code"] = ""
         self.state["opponent_joined"] = False
         self.state["in_leaderboard"] = False
+        self.state["in_match_history"] = False
         self.input_mode = None
         self.input_active = False
         self.input_text = ""
@@ -516,7 +526,11 @@ class GameController:
     def show_leaderboard(self):
         self.state["in_leaderboard"] = True
         send_json(self.sock, {"type": "LEADERBOARD_REQ"})
-        
+    
+    def show_match_history(self):
+        """Request match history from server"""
+        self.state["in_match_history"] = True
+        send_json(self.sock, {"type": "MATCH_HISTORY_REQ"})
     ### Image Loading ###
     
     def load_images(self):

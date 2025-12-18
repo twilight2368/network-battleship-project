@@ -197,15 +197,11 @@ User *db_get_top_users_by_elo(Database *database, int *count)
     sqlite3_stmt *stmt;
 
     const char *sql =
-        "SELECT username, elo, wins, losses, "
-        "  ( "
-        "    elo * MIN(1.0, (wins + losses) / 20.0) "
-        "    + 1000 * (1.0 - MIN(1.0, (wins + losses) / 20.0)) "
-        "  ) AS rank_score "
+        "SELECT username, elo, wins, losses "
         "FROM users "
         "ORDER BY "
         "  CASE WHEN (wins + losses) = 0 THEN 1 ELSE 0 END, "
-        "  rank_score DESC "
+        "  elo DESC "
         "LIMIT 20;";
 
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
@@ -313,7 +309,7 @@ Match *db_get_matches_by_user(Database *database, const char *username, int *cou
 {
     *count = 0;
     sqlite3_stmt *stmt;
-    const char *sql = "SELECT id, player1, player2, result FROM matches WHERE player1 = ? OR player2 = ?;";
+    const char *sql = "SELECT id, player1, player2, result FROM matches WHERE player1 = ? OR player2 = ? ORDER BY id DESC;";
     if (sqlite3_prepare_v2(database->db, sql, -1, &stmt, NULL) != SQLITE_OK)
         return NULL;
 

@@ -112,6 +112,10 @@ def draw_lobby_screen(controller, click_event_occurred):
     if state["in_leaderboard"]:
         draw_leaderboard_screen(controller, click_event_occurred)
         return
+    
+    if state.get("in_match_history"):
+        draw_match_history_screen(controller, click_event_occurred)
+        return
     # 2. Xử lý màn hình Queue (Giữ nguyên)
     screen = controller.screen
     
@@ -164,9 +168,13 @@ def draw_lobby_screen(controller, click_event_occurred):
         # LEADERBOARD (CUSTOM)
         if draw_button(screen, controller.font_small, 450, 390, 300, 50, "LEADERBOARD", event_click=click_event_occurred):
             controller.show_leaderboard()
-        
-        # LOGOUT (Vị trí mới: 460)
-        if draw_button(screen, controller.font_small, 450, 460, 300, 50, "LOGOUT", event_click=click_event_occurred):
+            
+        # MATCH HISTORY (CUSTOM)
+        if draw_button(screen, controller.font_small, 450, 460, 300, 50, "MATCH HISTORY", event_click=click_event_occurred):
+            controller.show_match_history()
+            
+        # LOGOUT 
+        if draw_button(screen, controller.font_small, 450, 530, 300, 50, "LOGOUT", event_click=click_event_occurred):
             if show_confirm_dialog(screen, controller.clock, controller.font_small, controller.font_small, "Are you sure you want to logout?"):
                 send_json(controller.sock, {"type": "LOGOUT"})
                 state["is_login"] = False
@@ -424,3 +432,216 @@ def handle_online_players_scroll(event, controller):
             scroll_area_height = 380  # Adjust based on your height parameter
             max_scroll = max(0, total_content_height - scroll_area_height)
             controller.online_players_scroll_offset = min(max_scroll, controller.online_players_scroll_offset + 25)
+            
+def draw_match_history_screen(controller, click_event_occurred):
+    """Draw match history screen with scrollable list"""
+    screen = controller.screen
+    state = controller.state
+    
+    # Initialize scroll offset if not exists
+    if not hasattr(controller, 'match_history_scroll_offset'):
+        controller.match_history_scroll_offset = 0
+    
+    # Background
+    if hasattr(controller, 'lobby_bg_img') and controller.lobby_bg_img:
+        screen.blit(controller.lobby_bg_img, (0, 0))
+    else:
+        screen.fill(WHITE)
+    
+    # Title
+    title = controller.font_large.render("MATCH HISTORY", True, BLACK)
+    title_rect = title.get_rect(center=(600, 50))
+    screen.blit(title, title_rect)
+    
+    # Calculate stats from match history
+    match_history = state.get("match_history", [])
+    current_username = state.get("username", "")
+    
+    total_wins = 0
+    total_losses = 0
+    total_draws = 0
+    
+    for match in match_history:
+        player1 = match.get("player1", "")
+        player2 = match.get("player2", "")
+        result = match.get("result", "")
+        
+        # Skip in-progress matches
+        if result == "IN_PROGRESS":
+            continue
+        
+        if result == "P1_WIN":
+            if player1 == current_username:
+                total_wins += 1
+            elif player2 == current_username:
+                total_losses += 1
+        elif result == "P2_WIN":
+            if player2 == current_username:
+                total_wins += 1
+            elif player1 == current_username:
+                total_losses += 1
+        elif result == "DRAW":
+            if player1 == current_username or player2 == current_username:
+                total_draws += 1
+    
+    # Calculate win rate
+    total_games = total_wins + total_losses + total_draws
+    if total_games > 0:
+        win_rate = (total_wins / total_games) * 100
+    else:
+        win_rate = 0.0
+    
+    # Draw stats in top right corner (NO BACKGROUND, NO BORDER)
+    stats_x = 0
+    stats_y = 120
+    
+    # Stats title
+    stats_title = controller.font_small.render("YOUR STATS", True, BLACK)
+    screen.blit(stats_title, (stats_x, stats_y))
+    
+    # Wins
+    wins_text = controller.font_small.render(f"Wins: {total_wins}", True, GREEN)
+    screen.blit(wins_text, (stats_x, stats_y + 25))
+    
+    # Losses
+    losses_text = controller.font_small.render(f"Losses: {total_losses}", True, RED)
+    screen.blit(losses_text, (stats_x, stats_y + 45))
+    
+    # Win Rate
+    win_rate_text = controller.font_small.render(f"Win Rate: {win_rate:.1f}%", True, BLUE)
+    screen.blit(win_rate_text, (stats_x, stats_y + 65))
+    
+    # Table layout constants
+    table_x = 200
+    table_width = 800
+    
+    # Table headers
+    headers = ["#", "Player 1", "Player 2", "Result"]
+    header_x_positions = [230, 350, 550, 750]
+    
+    y_start = 120
+    header_y = y_start
+    
+    # Draw header background
+    pygame.draw.rect(screen, BLUE, (table_x, header_y - 5, table_width, 40))
+    
+    # Draw headers
+    for i, header in enumerate(headers):
+        header_text = controller.font_small.render(header, True, WHITE)
+        screen.blit(header_text, (header_x_positions[i], header_y))
+    
+    # Create scrollable area
+    scroll_area_y = header_y + 50
+    scroll_area_height = 380
+    scroll_area_rect = pygame.Rect(table_x, scroll_area_y, table_width, scroll_area_height)
+    
+    # Get match history data
+    row_height = 45
+    total_content_height = len(match_history) * row_height
+    
+    # Calculate max scroll offset
+    max_scroll = max(0, total_content_height - scroll_area_height)
+    controller.match_history_scroll_offset = max(0, min(controller.match_history_scroll_offset, max_scroll))
+    
+    # Create clipping rectangle for scrollable area
+    clip_rect = screen.get_clip()
+    screen.set_clip(scroll_area_rect)
+    
+    # Draw match history data with scroll offset
+    row_y = scroll_area_y - controller.match_history_scroll_offset
+    
+    for idx, match in enumerate(match_history):
+        # Only draw if row is visible in scroll area
+        if row_y + row_height >= scroll_area_y and row_y < scroll_area_y + scroll_area_height:
+            # Alternate row colors
+            if idx % 2 == 0:
+                pygame.draw.rect(screen, (240, 240, 240), (table_x, row_y - 5, table_width, 40))
+            else:
+                pygame.draw.rect(screen, (255, 255, 255), (table_x, row_y - 5, table_width, 40))
+            
+            player1 = match.get("player1", "Unknown")
+            player2 = match.get("player2", "Unknown")
+            result = match.get("result", "UNKNOWN")
+            
+            # Determine result text and color based on current user
+            if result == "IN_PROGRESS":
+                result_text = "Playing..."
+                result_color = ORANGE
+            elif result == "P1_WIN":
+                if player1 == current_username:
+                    result_text = "Victory"
+                    result_color = GREEN
+                elif player2 == current_username:
+                    result_text = "Defeat"
+                    result_color = RED
+                else:
+                    result_text = f"{player1} Won"
+                    result_color = BLACK
+            elif result == "P2_WIN":
+                if player2 == current_username:
+                    result_text = "Victory"
+                    result_color = GREEN
+                elif player1 == current_username:
+                    result_text = "Defeat"
+                    result_color = RED
+                else:
+                    result_text = f"{player2} Won"
+                    result_color = BLACK
+            elif result == "DRAW":
+                result_text = "Draw"
+                result_color = GRAY
+            else:
+                result_text = result
+                result_color = BLACK
+            
+            # Highlight row if current user is in this match
+            text_color = BLUE if (player1 == current_username or player2 == current_username) else BLACK
+            
+            # Draw data
+            num_text = controller.font_small.render(f"{idx + 1}", True, text_color)
+            p1_text = controller.font_small.render(player1, True, text_color)
+            p2_text = controller.font_small.render(player2, True, text_color)
+            result_surf = controller.font_small.render(result_text, True, result_color)
+            
+            screen.blit(num_text, (header_x_positions[0], row_y))
+            screen.blit(p1_text, (header_x_positions[1], row_y))
+            screen.blit(p2_text, (header_x_positions[2], row_y))
+            screen.blit(result_surf, (header_x_positions[3], row_y))
+        
+        row_y += row_height
+    
+    # Restore clip
+    screen.set_clip(clip_rect)
+    
+    # Draw scrollbar if needed
+    if total_content_height > scroll_area_height:
+        scrollbar_x = table_x + table_width + 5
+        scrollbar_y = scroll_area_y
+        scrollbar_width = 15
+        scrollbar_height = scroll_area_height
+        
+        # Scrollbar background
+        pygame.draw.rect(screen, (200, 200, 200), (scrollbar_x, scrollbar_y, scrollbar_width, scrollbar_height))
+        
+        # Scrollbar thumb
+        thumb_height = max(30, int((scroll_area_height / total_content_height) * scrollbar_height))
+        thumb_y = scrollbar_y + int((controller.match_history_scroll_offset / max_scroll) * (scrollbar_height - thumb_height))
+        pygame.draw.rect(screen, BLUE, (scrollbar_x, thumb_y, scrollbar_width, thumb_height))
+    
+    # Back button (centered)
+    if draw_button(screen, controller.font_small, 450, 560, 300, 50, "BACK TO LOBBY", event_click=click_event_occurred):
+        controller.match_history_scroll_offset = 0  # Reset scroll
+        controller.return_to_lobby()
+        
+def handle_match_history_scroll(event, controller):
+    """Handle scroll events for match history"""
+    if event.type == MOUSEBUTTONDOWN:
+        if event.button == 4:  # Scroll up
+            controller.match_history_scroll_offset = max(0, controller.match_history_scroll_offset - 45)
+        elif event.button == 5:  # Scroll down
+            match_history = controller.state.get("match_history", [])
+            row_height = 45
+            total_content_height = len(match_history) * row_height
+            scroll_area_height = 380
+            max_scroll = max(0, total_content_height - scroll_area_height)
+            controller.match_history_scroll_offset = min(max_scroll, controller.match_history_scroll_offset + 45)
