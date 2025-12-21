@@ -1286,7 +1286,6 @@ int main(int argc, char const *argv[])
 
                             sendResponse(client_fd, res);
                         }
-
                         else // todo: UNKNOWN
                         {
                             printf("[UNKNOWN] %s:%d\n", inet_ntoa(player->addr.sin_addr), ntohs(player->addr.sin_port));

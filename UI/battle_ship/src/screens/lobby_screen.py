@@ -492,7 +492,7 @@ def draw_match_history_screen(controller, click_event_occurred):
         win_rate = 0.0
     
     # Draw stats in top right corner (NO BACKGROUND, NO BORDER)
-    stats_x = 0
+    stats_x = 5
     stats_y = 120
     
     # Stats title
@@ -500,16 +500,16 @@ def draw_match_history_screen(controller, click_event_occurred):
     screen.blit(stats_title, (stats_x, stats_y))
     
     # Wins
-    wins_text = controller.font_small.render(f"Wins: {total_wins}", True, GREEN)
-    screen.blit(wins_text, (stats_x, stats_y + 25))
+    wins_text = controller.font_small.render(f"- Wins: {total_wins}", True, BLACK)
+    screen.blit(wins_text, (stats_x, stats_y + 35))
     
     # Losses
-    losses_text = controller.font_small.render(f"Losses: {total_losses}", True, RED)
-    screen.blit(losses_text, (stats_x, stats_y + 45))
+    losses_text = controller.font_small.render(f"- Losses: {total_losses}", True, BLACK)
+    screen.blit(losses_text, (stats_x, stats_y + 65))
     
     # Win Rate
-    win_rate_text = controller.font_small.render(f"Win Rate: {win_rate:.1f}%", True, BLUE)
-    screen.blit(win_rate_text, (stats_x, stats_y + 65))
+    win_rate_text = controller.font_small.render(f"- Win Rate: {win_rate:.1f}%", True, BLACK)
+    screen.blit(win_rate_text, (stats_x, stats_y + 95))
     
     # Table layout constants
     table_x = 200
