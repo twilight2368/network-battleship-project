@@ -48,7 +48,7 @@ def run_game(controller):
             if event.type == MOUSEBUTTONDOWN and event.button == 1:
                 clicked_events_occur = True
                 
-            # Xử lý các sự kiện không liên quan đến click (input text, key press, v.v.)
+            # Xử lý các sự kiện không liên quan đến click (input text, key press)
             if not controller.state["is_login"]:
                 handle_login_events(event, controller)
             elif controller.state["in_game"] or controller.placing_ships:

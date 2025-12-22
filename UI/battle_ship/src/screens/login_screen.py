@@ -3,7 +3,7 @@ from pygame.locals import *
 
 # Import từ components và network
 from src.components.gui_elements import (
-    WHITE, BLACK,
+    WHITE, BLACK, SIZE_WINDOW,
     draw_button,
     draw_input_box,
     draw_password_input_box
@@ -11,8 +11,8 @@ from src.components.gui_elements import (
 from src.network.networking import send_json
 
 
-SCREEN_WIDTH = 1200
-SCREEN_HEIGHT = 700
+SCREEN_WIDTH = SIZE_WINDOW[0]
+SCREEN_HEIGHT = SIZE_WINDOW[1]
 
 CENTER_X = SCREEN_WIDTH // 2
 BUTTON_WIDTH = 300
